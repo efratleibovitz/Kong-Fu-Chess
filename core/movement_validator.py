@@ -29,11 +29,17 @@ def is_valid_move(token: str, from_pos: Position, to_pos: Position, board) -> bo
         return sorted([dx, dy]) == [1, 2]
     if piece == 'P':
         forward = -1 if color == 'w' else 1
+        start_row = board.num_rows - 1 if color == 'w' else 0
         dy_signed = to_pos.y - from_pos.y
         if dy_signed == forward and dx == 0:
-            return dest_token == '.'  # forward only if empty
+            return dest_token == '.'
+        if dy_signed == forward * 2 and dx == 0:
+            if from_pos.y != start_row:
+                return False
+            mid = Position(from_pos.x, from_pos.y + forward)
+            return dest_token == '.' and board.get_token(mid) == '.'
         if dy_signed == forward and dx == 1:
-            return dest_token != '.' and dest_token[0] != color  # diagonal only if enemy
+            return dest_token != '.' and dest_token[0] != color
         return False
     return False
 

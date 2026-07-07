@@ -85,30 +85,30 @@ def test_wait_settles_move_after_1000ms():
     assert len(game.pending_moves) == 0
 
 def test_wait_does_not_settle_move_before_1000ms():
-    # Verifies that waiting less than 1000ms does not place a 1-cell piece at the destination
+    # Verifies that waiting less than 500ms does not place a 1-cell piece at the destination
     game = GameService(Board([['wK', '.'], ['.', '.']]))
     game.click(50, 50)
     game.click(150, 50)
-    game.wait(500)
+    game.wait(400)
     assert game.board.get_token(Position(1, 0)) == '.'
     assert len(game.pending_moves) == 1
 
 def test_two_cell_move_arrives_after_2000ms():
-    # Verifies that a 2-cell rook move takes 2000ms to arrive
+    # Verifies that a 2-cell rook move takes 1000ms to arrive (distance * 500)
     game = GameService(Board([['wR', '.', '.']]))
     game.click(50, 50)
     game.click(250, 50)
-    game.wait(1000)
+    game.wait(500)
     assert game.board.get_token(Position(2, 0)) == '.'
-    game.wait(1000)
+    game.wait(500)
     assert game.board.get_token(Position(2, 0)) == 'wR'
 
 def test_two_cell_move_not_arrived_after_1000ms():
-    # Verifies that a 2-cell rook move is still in transit after 1000ms — piece visible at origin, not yet at destination
+    # Verifies that a 2-cell rook move is still in transit after 400ms — piece visible at origin, not yet at destination
     game = GameService(Board([['wR', '.', '.']]))
     game.click(50, 50)
     game.click(250, 50)
-    game.wait(1000)
+    game.wait(400)
     assert game.board.get_token(Position(0, 0)) == 'wR'
     assert game.board.get_token(Position(2, 0)) == '.'
 

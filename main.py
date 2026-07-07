@@ -24,6 +24,9 @@ def main():
         elif cmd.startswith('click '):
             _, x, y = cmd.split()
             game.click(int(x), int(y))
+        elif cmd.startswith('jump '):
+            _, x, y = cmd.split()
+            game.jump(int(x), int(y))
         elif cmd.startswith('wait '):
             _, ms = cmd.split()
             game.wait(int(ms))

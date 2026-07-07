@@ -74,9 +74,15 @@ def is_valid_move(token, from_pos, to_pos, board):
         return sorted([dx, dy]) == [1, 2]
     if piece == 'P':
         forward = -1 if color == 'w' else 1
+        start_row = board.num_rows - 1 if color == 'w' else 0
         dy_signed = to_pos.y - from_pos.y
         if dy_signed == forward and dx == 0:
             return dest_token == '.'
+        if dy_signed == forward * 2 and dx == 0:
+            if from_pos.y != start_row:
+                return False
+            mid = Position(from_pos.x, from_pos.y + forward)
+            return dest_token == '.' and board.get_token(mid) == '.'
         if dy_signed == forward and dx == 1:
             return dest_token != '.' and dest_token[0] != color
         return False
@@ -88,6 +94,7 @@ class GameService:
         self.selected = None
         self.clock = 0
         self.pending_moves = []
+        self.pending_jumps = []
         self.game_over = False
 
     def _columns_of_move(self, from_pos, to_pos):
@@ -102,6 +109,20 @@ class GameService:
 
     def _is_in_transit(self, pos):
         return any(m[1] == pos for m in self.pending_moves)
+
+    def _is_airborne(self, pos):
+        return any(j[1] == pos for j in self.pending_jumps)
+
+    def jump(self, x, y):
+        if self.game_over:
+            return
+        pos = self.board.pixel_to_cell(x, y)
+        if pos is None:
+            return
+        token = self.board.get_token(pos)
+        if token == '.' or self._is_in_transit(pos) or self._is_airborne(pos):
+            return
+        self.pending_jumps.append((token, pos, self.clock + 1000))
 
     def click(self, x, y):
         if self.game_over:
@@ -124,7 +145,15 @@ class GameService:
     def _schedule_move(self, from_pos, to_pos):
         token = self.board.get_token(from_pos)
         distance = max(abs(to_pos.x - from_pos.x), abs(to_pos.y - from_pos.y))
-        self.pending_moves.append((token, from_pos, to_pos, self.clock + distance * 1000))
+        arrive_time = self.clock + distance * 500
+        intercepted = any(
+            j[1] == to_pos and j[0][0] != token[0]
+            for j in self.pending_jumps
+        )
+        if intercepted:
+            self.board.set_token(from_pos, '.')
+        else:
+            self.pending_moves.append((token, from_pos, to_pos, arrive_time))
 
     def wait(self, ms):
         if self.game_over:
@@ -137,7 +166,12 @@ class GameService:
             self.board.set_token(to_pos, token)
             if captured != '.' and captured[1] == 'K':
                 self.game_over = True
+            if token[1] == 'P':
+                promote_row = 0 if token[0] == 'w' else self.board.num_rows - 1
+                if to_pos.y == promote_row:
+                    self.board.set_token(to_pos, token[0] + 'Q')
         self.pending_moves = [m for m in self.pending_moves if m[3] > self.clock]
+        self.pending_jumps = [j for j in self.pending_jumps if j[2] > self.clock]
 
     def print_board(self):
         self.board.print()
@@ -190,6 +224,9 @@ def main():
         elif cmd.startswith('click '):
             _, x, y = cmd.split()
             game.click(int(x), int(y))
+        elif cmd.startswith('jump '):
+            _, x, y = cmd.split()
+            game.jump(int(x), int(y))
         elif cmd.startswith('wait '):
             _, ms = cmd.split()
             game.wait(int(ms))

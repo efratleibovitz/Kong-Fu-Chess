@@ -166,3 +166,25 @@ def test_pawn_cannot_capture_empty_diagonal():
     # Verifies that a pawn cannot move diagonally if the destination is empty (no capture target)
     board = Board([['.', '.', '.'], ['.', 'wP', '.'], ['.', '.', '.']])
     assert not is_valid_move('wP', Position(1, 1), Position(0, 0), board)
+
+# --- Pawn double step and promotion ---
+
+def test_white_pawn_double_step_from_start_row_valid():
+    # Verifies that a white pawn on its start row (last row) can move two steps forward
+    board = Board([['.', '.', '.'], ['.', '.', '.'], ['.', '.', '.'], ['.', 'wP', '.']])
+    assert is_valid_move('wP', Position(1, 3), Position(1, 1), board)
+
+def test_black_pawn_double_step_from_start_row_valid():
+    # Verifies that a black pawn on its start row (first row) can move two steps forward
+    board = Board([['.', 'bP', '.'], ['.', '.', '.'], ['.', '.', '.'], ['.', '.', '.']])
+    assert is_valid_move('bP', Position(1, 0), Position(1, 2), board)
+
+def test_white_pawn_double_step_blocked_by_intermediate():
+    # Verifies that a white pawn double step is blocked if the intermediate square is occupied
+    board = Board([['.', '.', '.'], ['.', '.', '.'], ['.', 'bR', '.'], ['.', 'wP', '.']])
+    assert not is_valid_move('wP', Position(1, 3), Position(1, 1), board)
+
+def test_white_pawn_double_step_from_non_start_row_invalid():
+    # Verifies that a white pawn not on its start row cannot move two steps
+    board = Board([['.', '.', '.'], ['.', '.', '.'], ['.', 'wP', '.'], ['.', '.', '.']])
+    assert not is_valid_move('wP', Position(1, 2), Position(1, 0), board)
