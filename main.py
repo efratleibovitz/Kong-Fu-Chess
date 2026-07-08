@@ -1,3 +1,7 @@
+#git repository:
+#https://github.com/efratleibovitz/Kong-Fu-Chess.git
+
+
 import sys
 from infrastructure.board_parser import parse_input, validate_board
 from core.Entities.board import Board

@@ -93,3 +93,10 @@ def test_click_outside_board_is_ignored():
     game = GameService(Board([['wK', '.'], ['.', '.']]))
     game.click(350, 50)
     assert game.selected is None
+
+
+def test_print_board_outputs_board(capsys):
+    game = GameService(Board([['wK', '.'], ['.', 'bK']]))
+    game.print_board()
+    captured = capsys.readouterr()
+    assert captured.out == 'wK .\n. bK\n'

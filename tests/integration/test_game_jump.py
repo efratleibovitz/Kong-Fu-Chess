@@ -72,3 +72,13 @@ def test_jump_out_of_bounds_is_ignored():
     game.wait(1000)
     assert game.board.get_token(Position(1, 1)) == 'wK'
     assert len(game.pending_jumps) == 0
+
+
+def test_intercepted_move_removes_source_piece():
+    game = GameService(Board([['.', '.', '.'], ['wR', '.', 'bR'], ['.', '.', '.']]))
+    game.jump(250, 150)
+    game.click(50, 150)
+    game.click(250, 150)
+    game.wait(1000)
+    assert game.board.get_token(Position(0, 1)) == '.'
+    assert game.board.get_token(Position(2, 1)) == 'bR'
