@@ -1,3 +1,8 @@
-echo __pycache__/ > .gitignore
-echo .pytest_cache/ >> .gitignore
-echo *.pyc >> .gitignore
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+*.coverage.*
+*.log
+*.tmp

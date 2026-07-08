@@ -1,0 +1,8 @@
+{
+  "K": "KingMove",
+  "R": "RookMove",
+  "B": "BishopMove",
+  "Q": "QueenMove",
+  "N": "KnightMove",
+  "P": "PawnMove"
+}

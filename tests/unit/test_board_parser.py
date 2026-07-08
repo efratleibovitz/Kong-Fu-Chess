@@ -1,11 +1,8 @@
 import sys
 import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-import pytest
 from infrastructure.board_parser import parse_input, validate_board
-
-# --- parse_input tests ---
 
 def test_parse_input_separates_board_and_commands():
     # Verifies that board lines and command lines are correctly split into two separate lists
@@ -20,8 +17,6 @@ def test_parse_input_empty_commands():
     board_lines, command_lines = parse_input(lines)
     assert command_lines == []
 
-# --- validate_board tests ---
-
 def test_validate_board_valid_3x4():
     # Verifies that a valid 3-row by 4-column board returns rows with no error
     board_lines = ['wK . . bK', '. . . .', 'wR . . bR']
@@ -31,7 +26,7 @@ def test_validate_board_valid_3x4():
     assert len(rows[0]) == 4
 
 def test_validate_board_valid_pieces_and_empty():
-    # Verifies that all valid piece tokens (wK, bQ, wN, bP, wR) and empty squares (.) pass validation
+    # Verifies that all valid piece tokens and empty squares pass validation
     board_lines = ['wK . bQ', '. wN .', 'bP . wR']
     rows, error = validate_board(board_lines)
     assert error is None
