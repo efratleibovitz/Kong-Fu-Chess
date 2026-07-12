@@ -1,4 +1,4 @@
-from core.Entities.position import Position
+from model.position import Position
 
 def _sign(n):
     return (n > 0) - (n < 0)

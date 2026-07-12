@@ -1,6 +1,6 @@
 # core/moves/movement_strategy.py
 from abc import ABC, abstractmethod
-from core.Entities.position import Position
+from model.position import Position
 
 class MovementStrategy(ABC):
     @abstractmethod

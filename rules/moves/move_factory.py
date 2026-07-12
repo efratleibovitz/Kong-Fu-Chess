@@ -1,12 +1,12 @@
 import json
 from pathlib import Path
 
-from core.moves.KingMove import KingMove
-from core.moves.RookMove import RookMove
-from core.moves.BishopMove import BishopMove
-from core.moves.QueenMove import QueenMove
-from core.moves.KnightMove import KnightMove
-from core.moves.PawnMove import PawnMove
+from rules.moves.KingMove import KingMove
+from rules.moves.RookMove import RookMove
+from rules.moves.BishopMove import BishopMove
+from rules.moves.QueenMove import QueenMove
+from rules.moves.KnightMove import KnightMove
+from rules.moves.PawnMove import PawnMove
 
 
 class MoveFactory:

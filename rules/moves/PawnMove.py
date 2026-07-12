@@ -1,5 +1,5 @@
-from core.moves.MovementStrategy import MovementStrategy
-from core.Entities.position import Position
+from rules.moves.MovementStrategy import MovementStrategy
+from model.position import Position
 
 class PawnMove(MovementStrategy):
     def is_valid(self, from_pos: Position, to_pos: Position, board) -> bool:

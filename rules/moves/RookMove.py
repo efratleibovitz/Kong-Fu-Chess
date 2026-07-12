@@ -1,6 +1,6 @@
-from core.moves.MovementStrategy import MovementStrategy
-from core.moves.utils import is_blocked
-from core.Entities.position import Position
+from rules.moves.MovementStrategy import MovementStrategy
+from rules.moves.utils import is_blocked
+from model.position import Position
 
 class RookMove(MovementStrategy):
     def is_valid(self, from_pos: Position, to_pos: Position, board) -> bool:

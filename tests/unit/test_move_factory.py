@@ -4,9 +4,9 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from core.moves.KingMove import KingMove
-from core.moves.RookMove import RookMove
-from core.moves.move_factory import MoveFactory
+from rules.moves.KingMove import KingMove
+from rules.moves.RookMove import RookMove
+from rules.moves.move_factory import MoveFactory
 
 
 def test_move_factory_loads_strategy_map_from_config(tmp_path):
