@@ -6,9 +6,6 @@ class BoardMapper:
 
     @staticmethod
     def pixel_to_cell(x: int, y: int) -> Position:
-        """
-        ממירה קואורדינטות פיקסל של קליק למיקום תא בלוח.
-        """
         col = x // BoardMapper.CELL_SIZE
         row = y // BoardMapper.CELL_SIZE
         return Position(col, row)

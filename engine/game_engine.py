@@ -54,7 +54,6 @@ class GameEngine:
             if not self._is_in_transit(pos):
                 self.state.selected_position = pos
         elif selected is not None:
-            token = board.get_token(selected)
             validation = self.rule_engine.validate_move(board, selected, pos)
             if validation["is_valid"]:
                 if not self._has_column_conflict(selected, pos):
@@ -108,7 +107,7 @@ class GameEngine:
     def print_board(self):
         _print_board(self.state.board)
 
-    # convenience property so tests can do engine.board directly
+    # convenience properties so tests can access state directly
     @property
     def board(self) -> Board:
         return self.state.board

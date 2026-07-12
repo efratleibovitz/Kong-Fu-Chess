@@ -1,15 +1,17 @@
 from model.position import Position
 
+
 def _sign(n):
     return (n > 0) - (n < 0)
 
+
 def is_blocked(from_pos: Position, to_pos: Position, board) -> bool:
-    step_x = _sign(to_pos.x - from_pos.x)
-    step_y = _sign(to_pos.y - from_pos.y)
-    x, y = from_pos.x + step_x, from_pos.y + step_y
-    while (x, y) != (to_pos.x, to_pos.y):
-        if board.get_token(Position(x, y)) != '.':
+    step_col = _sign(to_pos.col - from_pos.col)
+    step_row = _sign(to_pos.row - from_pos.row)
+    col, row = from_pos.col + step_col, from_pos.row + step_row
+    while (col, row) != (to_pos.col, to_pos.row):
+        if board.get_token(Position(col, row)) != '.':
             return True
-        x += step_x
-        y += step_y
+        col += step_col
+        row += step_row
     return False
