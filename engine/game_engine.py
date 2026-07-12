@@ -1,4 +1,6 @@
 # engine/game_engine.py
+from typing import Optional
+
 from model.game_state import GameState
 from model.position import Position
 from model.board import Board
@@ -32,7 +34,7 @@ class GameEngine:
     def _is_airborne(self, pos: Position) -> bool:
         return any(j[1] == pos for j in self.state.pending_jumps)
 
-    def _pixel_to_cell(self, x: int, y: int) -> Position | None:
+    def _pixel_to_cell(self, x: int, y: int) -> Optional[Position]:
         if not BoardMapper.is_within_bounds(x, y, self.state.board.num_cols, self.state.board.num_rows):
             return None
         return BoardMapper.pixel_to_cell(x, y)
@@ -70,19 +72,21 @@ class GameEngine:
         if token == '.' or self._is_in_transit(pos) or self._is_airborne(pos):
             return
         self.state.pending_jumps.append((token, pos, self.state.clock + 1000))
-
     def _schedule_move(self, from_pos: Position, to_pos: Position):
         board = self.state.board
         token = board.get_token(from_pos)
         distance = max(abs(to_pos.x - from_pos.x), abs(to_pos.y - from_pos.y))
         arrive_time = self.state.clock + distance * 500
+        
         intercepted = any(
             j[1] == to_pos and j[0][0] != token[0]
             for j in self.state.pending_jumps
         )
+        
         if intercepted:
             board.set_token(from_pos, '.')
         else:
+            # כאן החזרנו את המצב: לא מסירים מהלוח עדיין!
             self.state.pending_moves.append((token, from_pos, to_pos, arrive_time))
 
     def wait(self, ms: int):
@@ -90,20 +94,60 @@ class GameEngine:
             return
         self.state.clock += ms
         board = self.state.board
+        
         settled = [m for m in self.state.pending_moves if m[3] <= self.state.clock]
+        still_moving = [m for m in self.state.pending_moves if m[3] > self.state.clock]
+        
         for token, from_pos, to_pos, _ in settled:
             captured = board.get_token(to_pos)
+            
+            # עכשיו אנחנו מסירים מהמקור ומציבים ביעד
             board.set_token(from_pos, '.')
             board.set_token(to_pos, token)
+            
+            # לוגיקת סיום משחק וקידום חייל
             if captured != '.' and captured[1] == 'K':
                 self.state.game_over = True
             if token[1] == 'P':
                 promote_row = 0 if token[0] == 'w' else board.num_rows - 1
                 if to_pos.y == promote_row:
                     board.set_token(to_pos, token[0] + 'Q')
-        self.state.pending_moves = [m for m in self.state.pending_moves if m[3] > self.state.clock]
+                    
+        self.state.pending_moves = still_moving
         self.state.pending_jumps = [j for j in self.state.pending_jumps if j[2] > self.state.clock]
-
+    # def _schedule_move(self, from_pos: Position, to_pos: Position):
+    #     board = self.state.board
+    #     token = board.get_token(from_pos)
+    #     distance = max(abs(to_pos.x - from_pos.x), abs(to_pos.y - from_pos.y))
+    #     arrive_time = self.state.clock + distance * 500
+    #     intercepted = any(
+    #         j[1] == to_pos and j[0][0] != token[0]
+    #         for j in self.state.pending_jumps
+    #     )
+    #     if intercepted:
+    #         board.set_token(from_pos, '.')
+    #     else:
+    #         self.state.pending_moves.append((token, from_pos, to_pos, arrive_time))
+    
+    # def wait(self, ms: int):
+    #     if self.state.game_over:
+    #         return
+    #     self.state.clock += ms
+    #     board = self.state.board
+    #     settled = [m for m in self.state.pending_moves if m[3] <= self.state.clock]
+    #     for token, from_pos, to_pos, _ in settled:
+    #         captured = board.get_token(to_pos)
+    #         board.set_token(from_pos, '.')
+    #         board.set_token(to_pos, token)
+    #         if captured != '.' and captured[1] == 'K':
+    #             self.state.game_over = True
+    #         if token[1] == 'P':
+    #             promote_row = 0 if token[0] == 'w' else board.num_rows - 1
+    #             if to_pos.y == promote_row:
+    #                 board.set_token(to_pos, token[0] + 'Q')
+    #     self.state.pending_moves = [m for m in self.state.pending_moves if m[3] > self.state.clock]
+    #     self.state.pending_jumps = [j for j in self.state.pending_jumps if j[2] > self.state.clock]
+    
     def print_board(self):
         _print_board(self.state.board)
 
@@ -113,7 +157,7 @@ class GameEngine:
         return self.state.board
 
     @property
-    def selected(self) -> Position | None:
+    def selected(self) -> Optional[Position]:
         return self.state.selected_position
 
     @property

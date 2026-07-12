@@ -1,3 +1,4 @@
+from typing import Optional
 from dataclasses import dataclass
 from enum import Enum
 from model.position import Position
@@ -39,7 +40,7 @@ class Piece:
         return prefix + self.kind.value
 
     @staticmethod
-    def from_token(token: str, cell: Position, piece_id: str | None = None) -> "Piece":
+    def from_token(token: str, cell: Position, piece_id: Optional[str] = None) -> "Piece":
         """Create a Piece from a board token string like 'wK' or 'bR'."""
         color = PieceColor.WHITE if token[0] == 'w' else PieceColor.BLACK
         kind  = PieceKind(token[1])

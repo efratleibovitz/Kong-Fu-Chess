@@ -8,7 +8,7 @@ class PawnMove(MovementStrategy):
         color = token[0]
         dest_token = board.get_token(to_pos)
         forward = -1 if color == 'w' else 1
-        start_row = board.num_rows - 1 if color == 'w' else 0
+        start_row = board.num_rows - 2 if color == 'w' else 1
         dcol = abs(to_pos.col - from_pos.col)
         drow_signed = to_pos.row - from_pos.row
 

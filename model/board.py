@@ -1,8 +1,10 @@
+from typing import List
+
 from model.position import Position
 
 
 class Board:
-    def __init__(self, rows: list[list[str]]):
+    def __init__(self, rows: List[List[str]]):
         # rows[row][col] — row 0 is the top of the board
         self.rows = rows
         self.num_rows = len(rows)
