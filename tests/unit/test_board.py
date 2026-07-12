@@ -10,33 +10,21 @@ from input.board_mapper import BoardMapper
 # --- BoardMapper: pixel_to_cell ---
 
 def test_pixel_to_cell_center_of_first_cell():
-    # Verifies that clicking the center of the top-left cell (50,50) maps to position (0,0)
     assert BoardMapper.pixel_to_cell(50, 50) == Position(0, 0)
 
 def test_pixel_to_cell_center_of_second_cell():
-    # Verifies that clicking pixel (150,50) maps to column 1, row 0
     assert BoardMapper.pixel_to_cell(150, 50) == Position(1, 0)
 
 def test_pixel_to_cell_out_of_bounds_returns_none():
-    # Verifies that a pixel outside a 2x2 board boundaries is detected as out of bounds
     assert not BoardMapper.is_within_bounds(350, 50, num_cols=2, num_rows=2)
 
 def test_pixel_to_cell_negative_returns_none():
-    # Verifies that a negative pixel coordinate is detected as out of bounds
     assert not BoardMapper.is_within_bounds(-10, 50, num_cols=2, num_rows=2)
 
-# --- Board: get/set token and print ---
+# --- Board: get/set token ---
 
 def test_get_and_set_token():
-    # Verifies that set_token correctly updates the cell and get_token reads it back
     board = Board([['wK', '.'], ['.', '.']])
     pos = Position(0, 0)
     board.set_token(pos, '.')
     assert board.get_token(pos) == '.'
-
-def test_print_board_output(capsys):
-    # Verifies that print() outputs each row as space-separated tokens
-    board = Board([['wK', '.'], ['.', 'bK']])
-    board.print()
-    captured = capsys.readouterr()
-    assert captured.out == 'wK .\n. bK\n'

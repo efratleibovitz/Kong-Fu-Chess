@@ -1,11 +1,11 @@
 #git repository:
 #https://github.com/efratleibovitz/Kong-Fu-Chess.git
 
-
 import sys
-from infrastructure.board_parser import parse_input, validate_board
-from core.Entities.board import Board
-from core.game_service import GameService
+from iofiles.board_parser import parse_input, validate_board
+from model.board import Board
+from model.game_state import GameState
+from engine.game_engine import GameEngine
 
 def main():
     lines = sys.stdin.readlines()
@@ -19,20 +19,20 @@ def main():
     if rows is None:
         return
 
-    game = GameService(Board(rows))
+    engine = GameEngine(GameState(Board(rows)))
 
     for cmd in command_lines:
         cmd = cmd.strip()
         if cmd == 'print board':
-            game.print_board()
+            engine.print_board()
         elif cmd.startswith('click '):
             _, x, y = cmd.split()
-            game.click(int(x), int(y))
+            engine.click(int(x), int(y))
         elif cmd.startswith('jump '):
             _, x, y = cmd.split()
-            game.jump(int(x), int(y))
+            engine.jump(int(x), int(y))
         elif cmd.startswith('wait '):
             _, ms = cmd.split()
-            game.wait(int(ms))
+            engine.wait(int(ms))
 
 main()

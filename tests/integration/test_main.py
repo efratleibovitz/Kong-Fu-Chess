@@ -4,11 +4,12 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 
 
 def test_main_select_and_move():
-    from core.Entities.board import Board
-    from core.Entities.position import Position
-    from core.game_service import GameService
+    from model.board import Board
+    from model.position import Position
+    from model.game_state import GameState
+    from engine.game_engine import GameEngine
 
-    game = GameService(Board([['wK', '.', '.'], ['.', '.', '.'], ['.', '.', '.']]))
+    game = GameEngine(GameState(Board([['wK', '.', '.'], ['.', '.', '.'], ['.', '.', '.']])))
     game.click(50, 50)
     game.click(150, 150)
     game.wait(1000)

@@ -2,13 +2,18 @@ import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from core.Entities.board import Board
-from core.Entities.position import Position
-from core.game_service import GameService
+from model.board import Board
+from model.position import Position
+from model.game_state import GameState
+from engine.game_engine import GameEngine
+
+
+def _make(rows):
+    return GameEngine(GameState(Board(rows)))
 
 
 def test_enemy_collision_white_started_first():
-    game = GameService(Board([['wR', '.', '.', 'bR']]))
+    game = _make([['wR', '.', '.', 'bR']])
     game.click(50, 50)
     game.click(350, 50)
     game.click(350, 50)
@@ -19,7 +24,7 @@ def test_enemy_collision_white_started_first():
 
 
 def test_enemy_collision_black_started_first():
-    game = GameService(Board([['wR', '.', '.', 'bR']]))
+    game = _make([['wR', '.', '.', 'bR']])
     game.click(350, 50)
     game.click(50, 50)
     game.click(50, 50)
@@ -30,7 +35,7 @@ def test_enemy_collision_black_started_first():
 
 
 def test_cannot_start_move_through_friendly_piece():
-    game = GameService(Board([['.', '.', '.'], ['wR', 'wP', '.'], ['.', '.', '.']]))
+    game = _make([['.', '.', '.'], ['wR', 'wP', '.'], ['.', '.', '.']])
     game.click(50, 150)
     game.click(250, 150)
     game.wait(2000)
@@ -39,12 +44,12 @@ def test_cannot_start_move_through_friendly_piece():
 
 
 def test_dynamic_block_tactic_not_in_common_route():
-    game = GameService(Board([
+    game = _make([
         ['.', '.', '.', '.'],
         ['wQ', '.', '.', 'bK'],
         ['.', '.', 'bP', '.'],
         ['.', '.', '.', '.'],
-    ]))
+    ])
     game.click(50, 150)
     game.click(350, 150)
     game.wait(200)
@@ -56,7 +61,7 @@ def test_dynamic_block_tactic_not_in_common_route():
 
 
 def test_knight_cannot_land_on_friendly_piece():
-    game = GameService(Board([['.', 'wP', '.'], ['.', '.', '.'], ['wN', '.', '.']]))
+    game = _make([['.', 'wP', '.'], ['.', '.', '.'], ['wN', '.', '.']])
     game.click(50, 250)
     game.click(150, 50)
     game.wait(1000)
@@ -65,7 +70,7 @@ def test_knight_cannot_land_on_friendly_piece():
 
 
 def test_premove_does_not_execute_in_common_route():
-    game = GameService(Board([['wR', '.', '.']]))
+    game = _make([['wR', '.', '.']])
     game.click(50, 50)
     game.click(150, 50)
     game.click(50, 50)

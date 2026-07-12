@@ -2,13 +2,18 @@ import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from core.Entities.board import Board
-from core.Entities.position import Position
-from core.game_service import GameService
+from model.board import Board
+from model.position import Position
+from model.game_state import GameState
+from engine.game_engine import GameEngine
+
+
+def _make(rows):
+    return GameEngine(GameState(Board(rows)))
 
 
 def test_white_pawn_promotes_to_queen_on_arrival():
-    game = GameService(Board([['.', '.'], ['.', 'wP']]))
+    game = _make([['.', '.'], ['.', 'wP']])
     game.click(150, 150)
     game.click(150, 50)
     game.wait(1000)
@@ -16,7 +21,7 @@ def test_white_pawn_promotes_to_queen_on_arrival():
 
 
 def test_black_pawn_promotes_to_queen_on_arrival():
-    game = GameService(Board([['.', 'bP'], ['.', '.']]))
+    game = _make([['.', 'bP'], ['.', '.']])
     game.click(150, 50)
     game.click(150, 150)
     game.wait(1000)
@@ -24,7 +29,7 @@ def test_black_pawn_promotes_to_queen_on_arrival():
 
 
 def test_promoted_queen_can_move_diagonally():
-    game = GameService(Board([['.', '.', '.'], ['.', 'wP', '.'], ['.', '.', '.']]))
+    game = _make([['.', '.', '.'], ['.', 'wP', '.'], ['.', '.', '.']])
     game.click(150, 150)
     game.click(150, 50)
     game.wait(1000)
@@ -35,12 +40,12 @@ def test_promoted_queen_can_move_diagonally():
 
 
 def test_white_pawn_double_step_arrives_correctly():
-    game = GameService(Board([
+    game = _make([
         ['.', '.', '.'],
         ['.', '.', '.'],
         ['.', '.', '.'],
         ['.', 'wP', '.'],
-    ]))
+    ])
     game.click(150, 350)
     game.click(150, 150)
     game.wait(2000)

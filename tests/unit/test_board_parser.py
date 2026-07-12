@@ -2,7 +2,7 @@ import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from infrastructure.board_parser import parse_input, validate_board
+from iofiles.board_parser import parse_input, validate_board
 
 def test_parse_input_separates_board_and_commands():
     # Verifies that board lines and command lines are correctly split into two separate lists
