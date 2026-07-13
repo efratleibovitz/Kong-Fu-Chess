@@ -43,10 +43,18 @@ def test_rook_diagonal_is_invalid():
     board.set_token(Position(0, 0), 'wR')
     assert not _is_valid(board, Position(0, 0), Position(1, 1))
 
-def test_rook_blocked_by_own_piece():
-    board = Board([['wR', 'wP', '.']])
-    assert not _is_valid(board, Position(0, 0), Position(2, 0))
+# def test_rook_blocked_by_own_piece():
+#     board = Board([['wR', 'wP', '.']])
+#     assert not _is_valid(board, Position(0, 0), Position(2, 0))
 
+def test_rook_geometry_valid_even_with_own_piece_on_path():
+    # RuleEngine validates geometric legality + friendly-destination only.
+    # Mid-path blocking by a friendly piece is handled later by MoveScheduler's
+    # path walk (see tests/integration/test_collision.py::
+    # test_rook_stops_one_before_friendly_mid_path), not by RuleEngine.
+    board = Board([['wR', 'wP', '.']])
+    assert _is_valid(board, Position(0, 0), Position(2, 0))
+    
 def test_rook_captures_enemy_at_destination():
     board = Board([['wR', '.', 'bR']])
     assert _is_valid(board, Position(0, 0), Position(2, 0))
