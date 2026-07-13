@@ -71,8 +71,8 @@ def test_rook_straight_move():
 
 
 def test_white_pawn_double_from_start_valid():
-    input_text = "Board:\n. . .\n. . .\n. . .\n. wP .\nCommands:\nclick 150 350\nclick 150 150\nwait 2000\nprint board\n"
-    assert _run_case(input_text) == ". . .\n. wP .\n. . .\n. . ."
+    input_text = "Board:\n. . .\n. . .\n. . .\n. wP .\n. . .\nCommands:\nclick 150 350\nclick 150 150\nwait 2000\nprint board\n"
+    assert _run_case(input_text) == ". . .\n. wP .\n. . .\n. . .\n. . ."
 
 
 def test_jump_lands_same_square():

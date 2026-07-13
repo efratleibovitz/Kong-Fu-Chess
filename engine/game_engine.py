@@ -6,6 +6,8 @@ from model.position import Position
 from model.board import Board
 from input.board_mapper import BoardMapper
 from rules.rule_engine import RuleEngine
+from engine.move_scheduler import MoveScheduler
+from realtime.move_settler import MoveSettler
 from iofiles.board_printer import print_board as _print_board
 
 
@@ -16,28 +18,16 @@ class GameEngine:
 
     # --- helpers ---
 
-    def _columns_of_move(self, from_pos: Position, to_pos: Position) -> set:
-        min_col = min(from_pos.x, to_pos.x)
-        max_col = max(from_pos.x, to_pos.x)
-        return set(range(min_col, max_col + 1))
-
-    def _has_column_conflict(self, from_pos: Position, to_pos: Position) -> bool:
-        new_cols = self._columns_of_move(from_pos, to_pos)
-        for _, pf, pt, _ in self.state.pending_moves:
-            if new_cols & self._columns_of_move(pf, pt):
-                return True
-        return False
+    def _pixel_to_cell(self, x: int, y: int) -> Optional[Position]:
+        if not BoardMapper.is_within_bounds(x, y, self.state.board.num_cols, self.state.board.num_rows):
+            return None
+        return BoardMapper.pixel_to_cell(x, y)
 
     def _is_in_transit(self, pos: Position) -> bool:
         return any(m[1] == pos for m in self.state.pending_moves)
 
     def _is_airborne(self, pos: Position) -> bool:
         return any(j[1] == pos for j in self.state.pending_jumps)
-
-    def _pixel_to_cell(self, x: int, y: int) -> Optional[Position]:
-        if not BoardMapper.is_within_bounds(x, y, self.state.board.num_cols, self.state.board.num_rows):
-            return None
-        return BoardMapper.pixel_to_cell(x, y)
 
     # --- public interface ---
 
@@ -58,8 +48,8 @@ class GameEngine:
         elif selected is not None:
             validation = self.rule_engine.validate_move(board, selected, pos)
             if validation["is_valid"]:
-                if not self._has_column_conflict(selected, pos):
-                    self._schedule_move(selected, pos)
+                if not MoveScheduler.has_column_conflict(selected, pos, self.state):
+                    MoveScheduler.schedule(selected, pos, self.state)
                     self.state.selected_position = None
 
     def jump(self, x: int, y: int):
@@ -72,86 +62,17 @@ class GameEngine:
         if token == '.' or self._is_in_transit(pos) or self._is_airborne(pos):
             return
         self.state.pending_jumps.append((token, pos, self.state.clock + 1000))
-    def _schedule_move(self, from_pos: Position, to_pos: Position):
-        board = self.state.board
-        token = board.get_token(from_pos)
-        distance = max(abs(to_pos.x - from_pos.x), abs(to_pos.y - from_pos.y))
-        arrive_time = self.state.clock + distance * 500
-        
-        intercepted = any(
-            j[1] == to_pos and j[0][0] != token[0]
-            for j in self.state.pending_jumps
-        )
-        
-        if intercepted:
-            board.set_token(from_pos, '.')
-        else:
-            # כאן החזרנו את המצב: לא מסירים מהלוח עדיין!
-            self.state.pending_moves.append((token, from_pos, to_pos, arrive_time))
 
     def wait(self, ms: int):
         if self.state.game_over:
             return
-        self.state.clock += ms
-        board = self.state.board
-        
-        settled = [m for m in self.state.pending_moves if m[3] <= self.state.clock]
-        still_moving = [m for m in self.state.pending_moves if m[3] > self.state.clock]
-        
-        for token, from_pos, to_pos, _ in settled:
-            captured = board.get_token(to_pos)
-            
-            # עכשיו אנחנו מסירים מהמקור ומציבים ביעד
-            board.set_token(from_pos, '.')
-            board.set_token(to_pos, token)
-            
-            # לוגיקת סיום משחק וקידום חייל
-            if captured != '.' and captured[1] == 'K':
-                self.state.game_over = True
-            if token[1] == 'P':
-                promote_row = 0 if token[0] == 'w' else board.num_rows - 1
-                if to_pos.y == promote_row:
-                    board.set_token(to_pos, token[0] + 'Q')
-                    
-        self.state.pending_moves = still_moving
-        self.state.pending_jumps = [j for j in self.state.pending_jumps if j[2] > self.state.clock]
-    # def _schedule_move(self, from_pos: Position, to_pos: Position):
-    #     board = self.state.board
-    #     token = board.get_token(from_pos)
-    #     distance = max(abs(to_pos.x - from_pos.x), abs(to_pos.y - from_pos.y))
-    #     arrive_time = self.state.clock + distance * 500
-    #     intercepted = any(
-    #         j[1] == to_pos and j[0][0] != token[0]
-    #         for j in self.state.pending_jumps
-    #     )
-    #     if intercepted:
-    #         board.set_token(from_pos, '.')
-    #     else:
-    #         self.state.pending_moves.append((token, from_pos, to_pos, arrive_time))
-    
-    # def wait(self, ms: int):
-    #     if self.state.game_over:
-    #         return
-    #     self.state.clock += ms
-    #     board = self.state.board
-    #     settled = [m for m in self.state.pending_moves if m[3] <= self.state.clock]
-    #     for token, from_pos, to_pos, _ in settled:
-    #         captured = board.get_token(to_pos)
-    #         board.set_token(from_pos, '.')
-    #         board.set_token(to_pos, token)
-    #         if captured != '.' and captured[1] == 'K':
-    #             self.state.game_over = True
-    #         if token[1] == 'P':
-    #             promote_row = 0 if token[0] == 'w' else board.num_rows - 1
-    #             if to_pos.y == promote_row:
-    #                 board.set_token(to_pos, token[0] + 'Q')
-    #     self.state.pending_moves = [m for m in self.state.pending_moves if m[3] > self.state.clock]
-    #     self.state.pending_jumps = [j for j in self.state.pending_jumps if j[2] > self.state.clock]
-    
+        MoveSettler.settle(self.state, ms)
+
     def print_board(self):
         _print_board(self.state.board)
 
-    # convenience properties so tests can access state directly
+    # --- convenience properties for tests ---
+
     @property
     def board(self) -> Board:
         return self.state.board

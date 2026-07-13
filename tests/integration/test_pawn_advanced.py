@@ -45,6 +45,7 @@ def test_white_pawn_double_step_arrives_correctly():
         ['.', '.', '.'],
         ['.', '.', '.'],
         ['.', 'wP', '.'],
+        ['.', '.', '.'],
     ])
     game.click(150, 350)
     game.click(150, 150)
