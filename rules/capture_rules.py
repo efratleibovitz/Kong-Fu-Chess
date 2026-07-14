@@ -4,8 +4,12 @@ from model.position import Position
 
 
 class CaptureRules:
+
+
+
     @staticmethod
     def is_king_captured(token: str) -> bool:
+        #!!!
         return token != '.' and token[1] == 'K'
 
     @staticmethod
