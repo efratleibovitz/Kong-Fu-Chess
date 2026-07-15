@@ -17,6 +17,7 @@ DEFAULT_BOARD = [
 
 def main():
     state = GameState(Board(DEFAULT_BOARD))
+    state.player_names = {'w': 'White', 'b': 'Black'}
     engine = GameEngine(state)
     Screen(engine, state).run()
 

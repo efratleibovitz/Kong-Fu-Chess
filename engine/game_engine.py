@@ -29,8 +29,9 @@ class GameEngine:
     def _is_airborne(self, pos: Position) -> bool:
         return any(j[1] == pos for j in self.state.pending_jumps)
 
-    def _is_in_cooldown(self, token: str) -> bool:
-        expire = self.state.cooldowns.get(token)
+    def _is_in_cooldown(self, pos: Position) -> bool:
+        key = (pos.col, pos.row)
+        expire = self.state.cooldowns.get(key)
         return expire is not None and expire > self.state.clock
 
     # --- public interface ---
@@ -47,7 +48,7 @@ class GameEngine:
         selected = self.state.selected_position
 
         if dest_token != '.' and (selected is None or dest_token[0] == board.get_token(selected)[0]):
-            if not self._is_in_transit(pos) and not self._is_in_cooldown(dest_token):
+            if not self._is_in_transit(pos) and not self._is_in_cooldown(pos):
                 self.state.selected_position = pos
         elif selected is not None:
             validation = self.rule_engine.validate_move(board, selected, pos)

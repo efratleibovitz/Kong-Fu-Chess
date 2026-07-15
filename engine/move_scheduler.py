@@ -15,10 +15,14 @@ class MoveScheduler:
 
     @staticmethod
     def has_column_conflict(from_pos: Position, to_pos: Position, state: GameState) -> bool:
+        # only straight horizontal moves can conflict on columns
+        if from_pos.row != to_pos.row:
+            return False
         new_cols = MoveScheduler._columns_of(from_pos, to_pos)
         for _, pf, pt, _, _, _ in state.pending_moves:
-            if new_cols & MoveScheduler._columns_of(pf, pt):
-                return True
+            if pf.row == pt.row == from_pos.row:
+                if new_cols & MoveScheduler._columns_of(pf, pt):
+                    return True
         return False
 
     @staticmethod
@@ -43,36 +47,29 @@ class MoveScheduler:
         board = state.board
         token = board.get_token(from_pos)
         depart_time = state.clock
+        is_knight = token[1] == 'N'
 
-        # Check for jump interception at destination
-        intercepted = any(
-            j[1] == to_pos and j[0][0] != token[0]
-            for j in state.pending_jumps
-        )
-        if intercepted:
-            board.set_token(from_pos, '.')
-            return
+        if is_knight:
+            # knights jump — no path collision, go directly to destination
+            actual_to = to_pos
+            mid_path_captures: list[str] = []
+        else:
+            path = MoveScheduler._build_path(from_pos, to_pos)
+            actual_to = from_pos
+            mid_path_captures = []
+            for step in path:
+                result = CollisionRules.check_step(step, token, board)
+                if result == StepResult.CLEAR:
+                    actual_to = step
+                elif result == StepResult.CAPTURE:
+                    cap_token = board.get_token(step)
+                    mid_path_captures.append((cap_token, step))
+                    actual_to = step
+                elif result == StepResult.BLOCKED:
+                    break
 
-        # Walk path step by step — captures are removed immediately,
-        # but king captures are stored PER-MOVE and only affect game_over
-        # once this specific move actually settles (see MoveSettler).
-        path = MoveScheduler._build_path(from_pos, to_pos)
-        actual_to = from_pos
-        mid_path_captures: list[str] = []
-        for step in path:
-            result = CollisionRules.check_step(step, token, board)
-            if result == StepResult.CLEAR:
-                actual_to = step
-            elif result == StepResult.CAPTURE:
-                captured = board.get_token(step)
-                mid_path_captures.append(captured)
-                board.set_token(step, '.')               # remove enemy; piece continues
-                actual_to = step
-            elif result == StepResult.BLOCKED:
-                break
-
-        if actual_to == from_pos:
-            return  # immediately blocked, no move
+            if actual_to == from_pos:
+                return  # immediately blocked, no move
 
         distance = max(abs(actual_to.col - from_pos.col), abs(actual_to.row - from_pos.row))
         arrive_time = depart_time + distance * 500
