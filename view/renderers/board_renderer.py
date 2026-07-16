@@ -12,7 +12,7 @@ from model.game_state import GameState
 from input.board_mapper import BoardMapper
 from view.loaders.sprite_loader import SpriteLoader, CELL
 
-BOARD_IMG = pathlib.Path(__file__).parent.parent / "CTD26" / "board.png"
+BOARD_IMG = pathlib.Path(__file__).parent.parent / "assets" / "board.png"
 CELL = BoardMapper.CELL_SIZE
 
 

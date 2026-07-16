@@ -77,7 +77,9 @@ class Img:
             for c in range(3):
                 roi[..., c] = (1 - mask) * roi[..., c] + mask * self.img[..., c]
         else:
-            other_img.img[y:y + h, x:x + w] = self.img
+            black_mask = np.all(self.img < 30, axis=2)
+            for c in range(3):
+                roi[..., c] = np.where(black_mask, roi[..., c], self.img[..., c])
 
     def put_text(self, txt, x, y, font_size, color=(255, 255, 255, 255), thickness=1):
         if self.img is None:

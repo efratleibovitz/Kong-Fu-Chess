@@ -4,20 +4,18 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "CTD26" / "py"))
 from img import Img
 
-ASSETS = pathlib.Path(__file__).parent.parent / "CTD26"
+ASSETS = pathlib.Path(__file__).parent.parent / "assets"
 CELL = 100
 
 # token prefix -> folder name  e.g. 'wK' -> 'KW', 'bP' -> 'PB'
-_KIND_MAP = {'K': 'K', 'Q': 'Q', 'R': 'R', 'B': 'B', 'N': 'N', 'P': 'P'}
-_COLOR_MAP = {'w': 'W', 'b': 'B'}
+# _KIND_MAP = {'K': 'K', 'Q': 'Q', 'R': 'R', 'B': 'B', 'N': 'N', 'P': 'P'}
+# _COLOR_MAP = {'w': 'W', 'b': 'B'}
 
 STATES = ('idle', 'move', 'jump', 'short_rest', 'long_rest')
 
 
-def _folder(token: str, piece_set: str = 'pieces1') -> pathlib.Path:
-    color = _COLOR_MAP[token[0]]
-    kind = _KIND_MAP[token[1]]
-    return ASSETS / piece_set / f"{kind}{color}"
+def _folder(token: str, piece_set: str = 'pieces_mine') -> pathlib.Path:
+    return ASSETS / piece_set / token
 
 
 def _load_sprites(folder: pathlib.Path, state: str) -> list[Img]:
@@ -29,7 +27,7 @@ def _load_sprites(folder: pathlib.Path, state: str) -> list[Img]:
 
 
 class SpriteLoader:
-    def __init__(self, piece_set: str = 'pieces1'):
+    def __init__(self, piece_set: str = 'pieces_mine'):
         self._cache: dict[str, dict[str, list[Img]]] = {}
         self._piece_set = piece_set
 
