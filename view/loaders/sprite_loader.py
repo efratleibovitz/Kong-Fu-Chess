@@ -1,15 +1,9 @@
 import pathlib
-import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "CTD26" / "py"))
-from img import Img
+from view.img import Img
+from view.constants import CELL
 
 ASSETS = pathlib.Path(__file__).parent.parent / "assets"
-CELL = 100
-
-# token prefix -> folder name  e.g. 'wK' -> 'KW', 'bP' -> 'PB'
-# _KIND_MAP = {'K': 'K', 'Q': 'Q', 'R': 'R', 'B': 'B', 'N': 'N', 'P': 'P'}
-# _COLOR_MAP = {'w': 'W', 'b': 'B'}
 
 STATES = ('idle', 'move', 'jump', 'short_rest', 'long_rest')
 

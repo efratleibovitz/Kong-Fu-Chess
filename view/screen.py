@@ -1,22 +1,15 @@
-import pathlib
-import sys
-
 import cv2
 import numpy as np
 
-sys.path.insert(0, str(pathlib.Path(__file__).parent / "CTD26" / "py"))
-from img import Img
-
+from view.img import Img
+from view.constants import CELL, HUD_W, FPS
 from engine.game_engine import GameEngine
 from model.game_state import GameState
-from input.board_mapper import BoardMapper
 from view.loaders.sprite_loader import SpriteLoader
 from view.renderers.board_renderer import BoardRenderer
-from view.renderers.hud_renderer import HUDRenderer, HUD_W
+from view.renderers.hud_renderer import HUDRenderer
 from view.renderers.overlay_renderer import OverlayRenderer
 
-CELL = BoardMapper.CELL_SIZE
-FPS = 30
 WINDOW = "Kong-Fu Chess"
 
 

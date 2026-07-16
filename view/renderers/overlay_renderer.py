@@ -1,18 +1,10 @@
-import pathlib
-import sys
-
 import cv2
 import numpy as np
 
-sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "CTD26" / "py"))
-from img import Img
-
+from view.img import Img
+from view.constants import GOLD, WHITE, RED, BOARD_IMG
 from model.game_state import GameState
 
-BOARD_IMG = pathlib.Path(__file__).parent.parent / "CTD26" / "board.png"
-GOLD = (0, 215, 255)
-WHITE = (255, 255, 255)
-RED = (0, 0, 255)
 
 
 class OverlayRenderer:

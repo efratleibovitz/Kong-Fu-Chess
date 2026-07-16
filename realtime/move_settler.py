@@ -2,6 +2,8 @@
 from model.game_state import GameState
 from rules.capture_rules import CaptureRules
 from model.piece_values import PIECE_VALUES
+from model.move_record import MoveRecord
+from model.notation import move_to_notation
 
 LONG_REST_MS = 2000
 SHORT_REST_MS = 1000
@@ -33,7 +35,7 @@ class MoveSettler:
             state.rest_type[(from_pos.col, from_pos.row)] = 'short_rest'
 
         for token, from_pos, to_pos, arrive_time, _, _ in settled:
-            print(f"[WINNER] {token} from={from_pos.col},{from_pos.row} to={to_pos.col},{to_pos.row}, board_at_from={board.get_token(from_pos)}, board_at_to={board.get_token(to_pos)}")
+            pass
 
         # jump interception — remove any settled move whose destination has an active enemy jump
         surviving_moves = []
@@ -86,6 +88,17 @@ class MoveSettler:
 
             if CaptureRules.should_promote(token, to_pos, board):
                 board.set_token(to_pos, CaptureRules.promote(token))
+
+            is_king = CaptureRules.is_king_captured(captured) or any(CaptureRules.is_king_captured(c[0]) for c in mid_path_captures)
+            is_queen = (captured != '.' and captured[1] == 'Q') or any(c[0][1] == 'Q' for c in mid_path_captures)
+            notation = move_to_notation(
+                token[1], from_pos.col, from_pos.row, to_pos.col, to_pos.row,
+                is_capture=(captured != '.' and captured[0] != token[0]) or bool(mid_path_captures),
+                is_checkmate=is_king,
+                is_check=is_queen and not is_king,
+                board=board
+            )
+            state.move_history.append(MoveRecord(time_ms=arrive_time, notation=notation, color=token[0]))
 
             state.cooldowns[(to_pos.col, to_pos.row)] = arrive_time + LONG_REST_MS
             state.rest_type[(to_pos.col, to_pos.row)] = 'long_rest'

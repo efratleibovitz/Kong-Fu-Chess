@@ -1,19 +1,12 @@
-import pathlib
-import sys
-
 import cv2
 import numpy as np
 
-sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "CTD26" / "py"))
-from img import Img
-
+from view.img import Img
+from view.constants import CELL, HUD_W, GOLD, HUD_BG, TEXT_COLOR
 from model.game_state import GameState
-from view.loaders.sprite_loader import SpriteLoader, CELL
+from view.loaders.sprite_loader import SpriteLoader
+from view.renderers.history_renderer import HistoryRenderer
 
-HUD_W = 220
-HUD_BG = (20, 20, 20)
-TEXT_COLOR = (220, 220, 220)
-GOLD = (0, 215, 255)
 CAPTURED_SIZE = 28
 
 
@@ -60,6 +53,10 @@ class HUDRenderer:
                 if x + CAPTURED_SIZE > HUD_W:
                     x = 10
                     y += CAPTURED_SIZE + 2
+
+        history_y = y_start + 100
+        max_h = (self._h // 2) - 110
+        HistoryRenderer.draw(panel, state, history_y, max_h, color)
 
     def _get_captured_sprite(self, token: str) -> Img | None:
         if token not in self._captured_cache:
