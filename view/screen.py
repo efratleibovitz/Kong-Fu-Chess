@@ -39,13 +39,14 @@ class Screen:
                 self._overlay.draw_start(board_canvas)
                 board_canvas.draw_on(canvas, 0, 0)
             else:
-                self._board_renderer.render(board_canvas, self._state)
+                rs = self._state.to_render_state()
+                self._board_renderer.render(board_canvas, rs)
                 board_canvas.draw_on(canvas, 0, 0)
-                hud = self._hud_renderer.make_panel(self._state)
+                hud = self._hud_renderer.make_panel(rs)
                 hud.draw_on(canvas, self._board_w, 0)
-                if self._state.game_over:
+                if rs.game_over:
                     win_canvas = self._make_board_canvas()
-                    self._overlay.draw_win(win_canvas, self._state)
+                    self._overlay.draw_win(win_canvas, rs)
                     win_canvas.draw_on(canvas, 0, 0)
 
             cv2.imshow(WINDOW, canvas.img)
