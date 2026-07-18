@@ -43,19 +43,23 @@ class HUDRenderer:
         panel.put_text(f"{name}", 10, y_start + 20, 0.6, label_color, 2)
         panel.put_text(f"score: {score}", 10, y_start + 42, 0.55, TEXT_COLOR + (255,), 1)
 
+        CAPTURED_ROWS = 2
+        captured_area_h = CAPTURED_ROWS * (CAPTURED_SIZE + 2)
         captured = state.captured[color]
         x, y = 10, y_start + 65
+        cap_bottom = y_start + 65 + captured_area_h
         for token in captured:
             sprite = self._get_captured_sprite(token)
-            if sprite and x + CAPTURED_SIZE <= HUD_W:
-                sprite.draw_on(panel, x, y)
-                x += CAPTURED_SIZE + 2
+            if sprite and y + CAPTURED_SIZE <= cap_bottom:
                 if x + CAPTURED_SIZE > HUD_W:
                     x = 10
                     y += CAPTURED_SIZE + 2
+                if y + CAPTURED_SIZE <= cap_bottom:
+                    sprite.draw_on(panel, x, y)
+                x += CAPTURED_SIZE + 2
 
-        history_y = y_start + 100
-        max_h = (self._h // 2) - 110
+        history_y = y_start + 65 + captured_area_h + 8
+        max_h = (self._h // 2) - (65 + captured_area_h + 8) - 10
         HistoryRenderer.draw(panel, state, history_y, max_h, color)
 
     def _get_captured_sprite(self, token: str) -> Img | None:

@@ -31,7 +31,7 @@ class OverlayRenderer:
             score = state.scores[winner]
             canvas.put_text(f"{winner_name} wins!", cx - 120, cy + 10, 1.4, GOLD + (255,), 3)
             canvas.put_text(f"Score: {score}", cx - 70, cy + 60, 1.0, WHITE + (255,), 2)
-        canvas.put_text("Press Q to quit", cx - 110, cy + 110, 0.8, WHITE + (255,), 1)
+        canvas.put_text("Press Q to quit  |  R to restart", cx - 210, cy + 110, 0.8, WHITE + (255,), 1)
 
     def _draw_dimmed_bg(self, canvas: Img):
         self._bg.draw_on(canvas, 0, 0)

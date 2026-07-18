@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 
 from view.img import Img
-from view.constants import CELL, HUD_W, FPS
+from view.constants import CELL, HUD_W, FPS,WINDOW
 from engine.game_engine import GameEngine
 from model.game_state import GameState
 from view.loaders.sprite_loader import SpriteLoader
@@ -10,7 +10,6 @@ from view.renderers.board_renderer import BoardRenderer
 from view.renderers.hud_renderer import HUDRenderer
 from view.renderers.overlay_renderer import OverlayRenderer
 
-WINDOW = "Kong-Fu Chess"
 
 
 class Screen:
@@ -27,8 +26,8 @@ class Screen:
         self._started = False
 
     def run(self):
-        cv2.namedWindow(WINDOW, cv2.WINDOW_AUTOSIZE)
-        cv2.setWindowProperty(WINDOW, cv2.WND_PROP_ASPECT_RATIO, cv2.WINDOW_KEEPRATIO)
+        cv2.namedWindow(WINDOW, cv2.WINDOW_NORMAL)
+        cv2.resizeWindow(WINDOW, self._total_w, self._board_h)
         cv2.setMouseCallback(WINDOW, self._on_mouse)
         frame_ms = int(1000 / FPS)
 
@@ -53,6 +52,9 @@ class Screen:
             key = cv2.waitKey(frame_ms) & 0xFF
             if key == ord('q') or key == 27:
                 break
+            if key == ord('r'):
+                self._engine.restart()
+                self._started = False
 
             self._engine.wait(frame_ms)
 
@@ -74,6 +76,10 @@ class Screen:
             if event == cv2.EVENT_LBUTTONDOWN:
                 self._started = True
             return
+        _, _, disp_w, disp_h = cv2.getWindowImageRect(WINDOW)
+        if disp_w > 0 and disp_h > 0:
+            x = int(x * self._total_w / disp_w)
+            y = int(y * self._board_h / disp_h)
         if x >= self._board_w:
             return
         if event == cv2.EVENT_LBUTTONDBLCLK:

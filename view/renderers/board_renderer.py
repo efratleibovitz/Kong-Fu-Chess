@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 
 from view.img import Img
-from view.constants import CELL, GOLD, BOARD_IMG
+from view.constants import CELL, GOLD, BOARD_IMG, PieceState
 from model.game_state import GameState
 from input.board_mapper import BoardMapper
 from view.loaders.sprite_loader import SpriteLoader
@@ -48,19 +48,23 @@ class BoardRenderer:
         for move in state.pending_moves:
             self._draw_highlight(canvas, move[2].col, move[2].row, (0, 120, 255))  # orange
 
-    def _piece_state(self, token: str, moving: set, jumping: set, state: GameState, col: int, row: int) -> str:
+    def _piece_state(self, token: str, moving: set, jumping: set, state: GameState, col: int, row: int) -> PieceState:
         if (col, row) in moving:
-            return 'move'
+            return PieceState.MOVE
         if (col, row) in jumping:
-            return 'jump'
+            return PieceState.JUMP
         key = (col, row)
         expire = state.cooldowns.get(key)
         if expire and expire > state.clock:
-            return state.rest_type.get(key, 'long_rest')
-        return 'idle'
+            rest = state.rest_type.get(key, 'long_rest')
+            return PieceState.LONG_REST if rest == 'long_rest' else PieceState.SHORT_REST
+        return PieceState.IDLE
 
-    def _advance_frame(self, key: str, total: int, dt: float, piece_state: str) -> int:
-        fps = {'move': 12, 'jump': 10, 'long_rest': 6, 'short_rest': 8}.get(piece_state, 6)
+    def _advance_frame(self, key: str, total: int, dt: float, piece_state: PieceState) -> int:
+        fps = {
+            PieceState.MOVE: 12, PieceState.JUMP: 10,
+            PieceState.LONG_REST: 6, PieceState.SHORT_REST: 8
+        }.get(piece_state, 6)
         self._frame_counters.setdefault(key, 0.0)
         self._frame_counters[key] = (self._frame_counters[key] + dt * fps) % total
         return int(self._frame_counters[key])

@@ -74,6 +74,12 @@ class GameEngine:
             return
         MoveSettler.settle(self.state, ms)
 
+    def restart(self):
+        from model.board import Board
+        fresh = GameState(Board([row[:] for row in self.state.board.initial_rows]))
+        fresh.player_names = dict(self.state.player_names)
+        self.state.__dict__.update(fresh.__dict__)
+
     def print_board(self):
         _print_board(self.state.board)
 

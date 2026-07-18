@@ -7,6 +7,7 @@ class Board:
     def __init__(self, rows: List[List[str]]):
         # rows[row][col] — row 0 is the top of the board
         self.rows = rows
+        self.initial_rows = [row[:] for row in rows]
         self.num_rows = len(rows)
         self.num_cols = len(rows[0]) if rows else 0
 
