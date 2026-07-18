@@ -1,32 +1,30 @@
 """
 test_hud_renderer.py
 Covers: view/renderers/hud_renderer.py
-
-Tests that HUDRenderer:
-- make_panel returns an Img with correct dimensions (HUD_W wide)
-- player name and score are rendered via put_text
-- clock string is formatted correctly (MM:SS)
-- captured pieces trigger sprite lookups via loader
-- captured sprites are cached (loader.get not called twice for same token)
 """
-import sys
-import os
+import sys, os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 import numpy as np
-from unittest.mock import MagicMock, patch, call
-from model.board import Board
-from model.game_state import GameState
+from unittest.mock import MagicMock, patch
 from view.renderers.hud_renderer import HUDRenderer, HUD_W
+from view.render_state import RenderState, PlayerRenderInfo
 
 
-def _make_state():
-    state = GameState(Board([['.'] * 8] * 8))
-    state.player_names = {'w': 'White', 'b': 'Black'}
-    state.scores = {'w': 0, 'b': 0}
-    state.captured = {'w': [], 'b': []}
-    state.clock = 0
-    return state
+def _player(name='White', score=0, captured=None):
+    return PlayerRenderInfo(name=name, score=score, captured=captured or [], move_history=[])
+
+
+def _make_rs(clock_ms=0, white=None, black=None):
+    return RenderState(
+        num_cols=8, num_rows=8,
+        pieces=[], selected_col=None, selected_row=None,
+        pending_destinations=[],
+        clock_ms=clock_ms,
+        white=white or _player('White'),
+        black=black or _player('Black'),
+        game_over=False, loser=None,
+    )
 
 
 def _make_renderer():
@@ -43,85 +41,62 @@ def _make_renderer():
 
 def test_panel_width_is_hud_w():
     renderer, _ = _make_renderer()
-    state = _make_state()
-    panel = renderer.make_panel(state)
+    panel = renderer.make_panel(_make_rs())
     assert panel.img.shape[1] == HUD_W
 
 def test_panel_height_matches_board():
     renderer, _ = _make_renderer()
-    state = _make_state()
-    panel = renderer.make_panel(state)
+    panel = renderer.make_panel(_make_rs())
     assert panel.img.shape[0] == renderer._h
 
 
 # ── clock formatting ──────────────────────────────────────────────────────────
 
-def test_clock_zero():
+def test_clock_zero_no_crash():
     renderer, _ = _make_renderer()
-    state = _make_state()
-    state.clock = 0
-    panel = renderer.make_panel(state)
-    assert panel is not None  # just ensure no crash
+    assert renderer.make_panel(_make_rs(clock_ms=0)) is not None
 
-def test_clock_one_minute():
+def test_clock_one_minute_no_crash():
     renderer, _ = _make_renderer()
-    state = _make_state()
-    state.clock = 61000  # 1 min 1 sec
-    # patch put_text to capture calls
-    calls_made = []
-    panel = renderer.make_panel(state)
-    assert panel is not None
+    assert renderer.make_panel(_make_rs(clock_ms=61000)) is not None
 
 
-# ── put_text called for name and score ────────────────────────────────────────
+# ── player info ───────────────────────────────────────────────────────────────
 
-def test_put_text_called_for_player_name():
+def test_panel_renders_with_custom_names():
     renderer, _ = _make_renderer()
-    state = _make_state()
-    state.player_names = {'w': 'Alice', 'b': 'Bob'}
-    panel = MagicMock()
-    panel.img = np.full((800, HUD_W, 3), (20, 20, 20), dtype=np.uint8)
-    with patch('numpy.full', return_value=panel.img):
-        with patch('view.renderers.hud_renderer.Img') as MockImg:
-            MockImg.return_value.img = panel.img
-            result = renderer.make_panel(state)
-    # panel is real Img — just verify no crash and correct type
-    assert result is not None
+    rs = _make_rs(white=_player('Alice'), black=_player('Bob'))
+    assert renderer.make_panel(rs) is not None
 
-def test_score_reflected_in_state():
+def test_panel_renders_with_score():
     renderer, _ = _make_renderer()
-    state = _make_state()
-    state.scores['w'] = 9
-    panel = renderer.make_panel(state)
-    assert panel is not None
+    rs = _make_rs(white=_player(score=9))
+    assert renderer.make_panel(rs) is not None
 
 
 # ── captured pieces ───────────────────────────────────────────────────────────
 
 def test_captured_piece_triggers_loader_get():
     renderer, loader = _make_renderer()
-    state = _make_state()
-    state.captured['w'] = ['bP']
     fake_img = MagicMock()
     fake_img.img = np.zeros((28, 28, 3), dtype=np.uint8)
     loader.get.return_value = [fake_img]
-    renderer.make_panel(state)
-    loader.get.assert_called_with('bP', 'idle')
+    rs = _make_rs(white=_player(captured=['bP']))
+    renderer.make_panel(rs)
+    from view.constants import PieceState
+    loader.get.assert_called_with('bP', PieceState.IDLE)
 
 def test_captured_sprite_is_cached():
     renderer, loader = _make_renderer()
-    state = _make_state()
-    state.captured['w'] = ['bP', 'bP']
     fake_img = MagicMock()
     fake_img.img = np.zeros((100, 100, 3), dtype=np.uint8)
     loader.get.return_value = [fake_img]
-    renderer.make_panel(state)
-    # loader.get should only be called once for 'bP' due to cache
+    rs = _make_rs(white=_player(captured=['bP', 'bP']))
+    renderer.make_panel(rs)
     bP_calls = [c for c in loader.get.call_args_list if c[0][0] == 'bP']
     assert len(bP_calls) == 1
 
 def test_no_loader_call_when_no_captures():
     renderer, loader = _make_renderer()
-    state = _make_state()
-    renderer.make_panel(state)
+    renderer.make_panel(_make_rs())
     loader.get.assert_not_called()

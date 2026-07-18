@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from model.board import Board
 from model.position import Position
 from model.move_record import MoveRecord
+from model.event_bus import EventBus
 
 
 @dataclass
@@ -20,6 +21,7 @@ class GameState:
     rest_type: Dict[Tuple[int,int], str] = field(default_factory=dict)
     loser: Optional[str] = None
     move_history: List[MoveRecord] = field(default_factory=list)
+    events: EventBus = field(default_factory=EventBus)
 
     def to_render_state(self):
         from view.render_state import RenderState, PieceRenderInfo, MoveArrow, PlayerRenderInfo

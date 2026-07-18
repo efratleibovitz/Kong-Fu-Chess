@@ -85,6 +85,7 @@ class MoveSettler:
             if CaptureRules.is_king_captured(captured):
                 state.game_over = True
                 state.loser = captured[0]
+                state.events.emit('game_over', loser=state.loser)
 
             if CaptureRules.should_promote(token, to_pos, board):
                 board.set_token(to_pos, CaptureRules.promote(token))
@@ -102,6 +103,7 @@ class MoveSettler:
 
             state.cooldowns[(to_pos.col, to_pos.row)] = arrive_time + LONG_REST_MS
             state.rest_type[(to_pos.col, to_pos.row)] = 'long_rest'
+            state.events.emit('piece_settled')
 
     @staticmethod
     def _step_before(from_pos, to_pos):

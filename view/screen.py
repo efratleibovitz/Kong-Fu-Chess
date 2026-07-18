@@ -24,6 +24,20 @@ class Screen:
         self._total_w = self._board_w + HUD_W
         self._overlay = OverlayRenderer(self._board_w, self._board_h)
         self._started = False
+        self._needs_redraw = True
+        self._rs = None
+
+        state.events.subscribe('piece_settled', self._on_state_changed)
+        state.events.subscribe('game_over', self._on_state_changed)
+        state.events.subscribe('selection_changed', self._on_state_changed)
+        state.events.subscribe('restarted', self._on_restart)
+
+    def _on_state_changed(self, **_):
+        self._needs_redraw = True
+
+    def _on_restart(self, **_):
+        self._started = False
+        self._needs_redraw = True
 
     def run(self):
         cv2.namedWindow(WINDOW, cv2.WINDOW_NORMAL)
@@ -32,34 +46,55 @@ class Screen:
         frame_ms = int(1000 / FPS)
 
         while True:
+            self._engine.wait(frame_ms)
+
+            if self._needs_redraw:
+                self._rs = self._state.to_render_state()
+                self._needs_redraw = False
+            elif self._rs is not None:
+                self._rs.clock_ms = self._state.clock
+                self._update_cooldown_fills()
+
             canvas = self._make_canvas()
             board_canvas = self._make_board_canvas()
 
             if not self._started:
                 self._overlay.draw_start(board_canvas)
-                board_canvas.draw_on(canvas, 0, 0)
-            else:
-                rs = self._state.to_render_state()
-                self._board_renderer.render(board_canvas, rs)
-                board_canvas.draw_on(canvas, 0, 0)
-                hud = self._hud_renderer.make_panel(rs)
-                hud.draw_on(canvas, self._board_w, 0)
-                if rs.game_over:
+            elif self._rs is not None:
+                self._board_renderer.render(board_canvas, self._rs)
+                if self._rs.game_over:
                     win_canvas = self._make_board_canvas()
-                    self._overlay.draw_win(win_canvas, rs)
-                    win_canvas.draw_on(canvas, 0, 0)
+                    self._overlay.draw_win(win_canvas, self._rs)
+                    win_canvas.draw_on(board_canvas, 0, 0)
 
+            board_canvas.draw_on(canvas, 0, 0)
+            if self._rs is not None and self._started:
+                hud = self._hud_renderer.make_panel(self._rs)
+                hud.draw_on(canvas, self._board_w, 0)
             cv2.imshow(WINDOW, canvas.img)
+
             key = cv2.waitKey(frame_ms) & 0xFF
             if key == ord('q') or key == 27:
                 break
             if key == ord('r'):
                 self._engine.restart()
-                self._started = False
-
-            self._engine.wait(frame_ms)
 
         cv2.destroyAllWindows()
+
+    def _update_cooldown_fills(self):
+        LONG_REST_MS = 2000
+        SHORT_REST_MS = 1000
+        clock = self._state.clock
+        for piece in self._rs.pieces:
+            key = (piece.col, piece.row)
+            expire = self._state.cooldowns.get(key, 0)
+            if expire > clock:
+                rest = self._state.rest_type.get(key, 'long_rest')
+                total_ms = LONG_REST_MS if rest == 'long_rest' else SHORT_REST_MS
+                piece.cooldown_fill = max(0.0, min(1.0, (expire - clock) / total_ms))
+                piece.cooldown_is_long = rest == 'long_rest'
+            else:
+                piece.cooldown_fill = 0.0
 
     def _make_canvas(self) -> Img:
         canvas = Img()
@@ -76,6 +111,7 @@ class Screen:
         if not self._started:
             if event == cv2.EVENT_LBUTTONDOWN:
                 self._started = True
+                self._needs_redraw = True
             return
         _, _, disp_w, disp_h = cv2.getWindowImageRect(WINDOW)
         if disp_w > 0 and disp_h > 0:

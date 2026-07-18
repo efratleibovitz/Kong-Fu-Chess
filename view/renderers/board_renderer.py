@@ -48,6 +48,8 @@ class BoardRenderer:
         return int(self._frame_counters[key])
 
     def _draw_cooldown_bar(self, canvas: Img, col: int, row: int, fill: float, is_long: bool):
+        if fill <= 0:
+            return
         color = (0, 120, 255) if is_long else (255, 160, 0)
         x = col * CELL + 6
         y = row * CELL + CELL - 8
