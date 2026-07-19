@@ -6,7 +6,7 @@ HUD_W = 220
 FPS = 30
 
 BOARD_IMG = pathlib.Path(__file__).parent / "assets" / "board.png"
-ASSETS = pathlib.Path(__file__).parent.parent / "assets"
+ASSETS = pathlib.Path(__file__).parent / "assets"
 
 # colors (BGR)
 GOLD = (0, 215, 255)

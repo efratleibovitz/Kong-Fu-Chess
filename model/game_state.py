@@ -65,7 +65,7 @@ class GameState:
             return PlayerRenderInfo(
                 name=self.player_names[color],
                 score=self.scores[color],
-                captured=list(self.captured[color]),
+                captured=[p.token for p in self.captured[color]],
                 move_history=[(m.time_ms, m.notation) for m in self.move_history if m.color == color]
             )
 
