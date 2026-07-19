@@ -30,7 +30,9 @@ def test_validate_board_valid_pieces_and_empty():
     board_lines = ['wK . bQ', '. wN .', 'bP . wR']
     rows, error = validate_board(board_lines)
     assert error is None
-    assert rows[0] == ['wK', '.', 'bQ']
+    assert rows[0][0].token == 'wK'
+    assert rows[0][1] is None
+    assert rows[0][2].token == 'bQ'
 
 def test_validate_board_unknown_token():
     # Verifies that a token not matching [wb][KQRBNP] or . triggers UNKNOWN_TOKEN error

@@ -42,11 +42,11 @@ class MoveSettler:
             color_char = 'w' if piece.color.value == 'white' else 'b'
             jump_at_dest = any(
                 j[1] == to_pos and j[0].color != piece.color
-                for j in state.pending_jumps
+                for j in expired_jumps
             )
             if jump_at_dest:
                 board.set_piece(from_pos, None)
-                jumping_piece = next(j[0] for j in state.pending_jumps if j[1] == to_pos and j[0].color != piece.color)
+                jumping_piece = next(j[0] for j in expired_jumps if j[1] == to_pos and j[0].color != piece.color)
                 jumping_color = 'w' if jumping_piece.color.value == 'white' else 'b'
                 state.captured[jumping_color].append(piece)
                 state.scores[jumping_color] += PIECE_VALUES.get(piece.kind, 0)

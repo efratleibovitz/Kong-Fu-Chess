@@ -14,6 +14,9 @@ class CollisionRules:
     @staticmethod
     def check_step(pos: Position, piece, board: Board) -> StepResult:
         """Check what happens when `piece` tries to step onto `pos`."""
+        from model.piece import Piece
+        if isinstance(piece, str):
+            piece = Piece.from_token(piece, pos)
         occupant = board.get_piece(pos)
         if occupant is None:
             return StepResult.CLEAR
