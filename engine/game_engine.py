@@ -36,6 +36,38 @@ class GameEngine:
 
     # --- public interface ---
 
+    def click_cell(self, col: int, row: int):
+        if self.state.game_over:
+            return
+        pos = Position(col, row)
+        if not (0 <= col < self.state.board.num_cols and 0 <= row < self.state.board.num_rows):
+            return
+        board = self.state.board
+        dest_piece = board.get_piece(pos)
+        selected = self.state.selected_position
+        if dest_piece is not None and (selected is None or dest_piece.color == board.get_piece(selected).color):
+            if not self._is_in_transit(pos) and not self._is_in_cooldown(pos):
+                self.state.selected_position = pos
+                self.state.events.emit('selection_changed')
+        elif selected is not None:
+            validation = self.rule_engine.validate_move(board, selected, pos)
+            if validation["is_valid"]:
+                if not MoveScheduler.has_column_conflict(selected, pos, self.state):
+                    MoveScheduler.schedule(selected, pos, self.state)
+                    self.state.selected_position = None
+                    self.state.events.emit('selection_changed')
+
+    def jump_cell(self, col: int, row: int):
+        if self.state.game_over:
+            return
+        if not (0 <= col < self.state.board.num_cols and 0 <= row < self.state.board.num_rows):
+            return
+        pos = Position(col, row)
+        piece = self.state.board.get_piece(pos)
+        if piece is None or self._is_in_transit(pos) or self._is_airborne(pos):
+            return
+        self.state.pending_jumps.append((piece, pos, self.state.clock + 1000))
+
     def click(self, x: int, y: int):
         if self.state.game_over:
             return
