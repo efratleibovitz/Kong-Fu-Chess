@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 
 from view.img import Img
-from view.constants import CELL, HUD_W, GOLD, HUD_BG, TEXT_COLOR,CAPTURED_SIZE
+from view.constants import CELL, HUD_W, GOLD, HUD_BG, TEXT_COLOR, CAPTURED_SIZE, SILVER, DIVIDER
 from view.render_state import RenderState
 from view.loaders.sprite_loader import SpriteLoader
 from view.renderers.history_renderer import HistoryRenderer
@@ -24,13 +24,13 @@ class HUDRenderer:
         total_sec = rs.clock_ms // 1000
         mins, secs = divmod(total_sec, 60)
         mid_y = self._h // 2
-        cv2.line(panel.img, (10, mid_y), (HUD_W - 10, mid_y), (60, 60, 60), 1)
+        cv2.line(panel.img, (10, mid_y), (HUD_W - 10, mid_y), DIVIDER, 1)
         panel.put_text(f"{mins:02}:{secs:02}", HUD_W // 2 - 30, mid_y - 8, 0.7, GOLD + (255,), 2)
 
         return panel
 
     def _draw_player_section(self, panel: Img, player, color: str, y_start: int):
-        label_color = GOLD if color == 'w' else (200, 200, 200, 255)
+        label_color = GOLD if color == 'w' else (*SILVER, 255)
         panel.put_text(player.name, 10, y_start + 20, 0.6, label_color, 2)
         panel.put_text(f"score: {player.score}", 10, y_start + 42, 0.55, TEXT_COLOR + (255,), 1)
 

@@ -10,17 +10,17 @@ class RuleEngine:
             return {"is_valid": False, "reason": "outside_board"}
         
         # 2. האם יש כלי במקור?
-        token = board.get_token(from_pos)
-        if token == '.':
+        piece = board.get_piece(from_pos)
+        if piece is None:
             return {"is_valid": False, "reason": "empty_source"}
         
         # 3. האם היעד תפוס ע"י כלי ידידותי?
-        dest_token = board.get_token(to_pos)
-        if dest_token != '.' and dest_token[0] == token[0]:
+        dest_piece = board.get_piece(to_pos)
+        if dest_piece is not None and dest_piece.color == piece.color:
             return {"is_valid": False, "reason": "friendly_destination"}
         
         # 4. בדיקת חוקיות גיאומטרית (Strategy Pattern)
-        strategy = MoveFactory.get_strategy(token[1])
+        strategy = MoveFactory.get_strategy(piece.kind.value)
         if not strategy or not strategy.is_valid(from_pos, to_pos, board):
             return {"is_valid": False, "reason": "illegal_piece_move"}
             

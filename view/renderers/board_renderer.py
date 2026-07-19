@@ -4,7 +4,11 @@ import cv2
 import numpy as np
 
 from view.img import Img
-from view.constants import CELL, GOLD, BOARD_IMG, PieceState
+from view.constants import (
+    CELL, GOLD, BOARD_IMG, PieceState,
+    HIGHLIGHT_SELECTED, HIGHLIGHT_PENDING,
+    COOLDOWN_LONG, COOLDOWN_SHORT, COOLDOWN_BG,
+)
 from view.render_state import RenderState
 from view.loaders.sprite_loader import SpriteLoader
 
@@ -34,9 +38,9 @@ class BoardRenderer:
                 self._draw_cooldown_bar(canvas, piece.col, piece.row, piece.cooldown_fill, piece.cooldown_is_long)
 
         if rs.selected_col is not None:
-            self._draw_highlight(canvas, rs.selected_col, rs.selected_row, (0, 215, 255))
+            self._draw_highlight(canvas, rs.selected_col, rs.selected_row, HIGHLIGHT_SELECTED)
         for arrow in rs.pending_destinations:
-            self._draw_highlight(canvas, arrow.to_col, arrow.to_row, (0, 120, 255))
+            self._draw_highlight(canvas, arrow.to_col, arrow.to_row, HIGHLIGHT_PENDING)
 
     def _advance_frame(self, key: str, total: int, dt: float, piece_state: PieceState) -> int:
         fps = {
@@ -50,12 +54,12 @@ class BoardRenderer:
     def _draw_cooldown_bar(self, canvas: Img, col: int, row: int, fill: float, is_long: bool):
         if fill <= 0:
             return
-        color = (0, 120, 255) if is_long else (255, 160, 0)
+        color = COOLDOWN_LONG if is_long else COOLDOWN_SHORT
         x = col * CELL + 6
         y = row * CELL + CELL - 8
         bar_w = CELL - 12
         bar_h = 5
-        cv2.rectangle(canvas.img, (x, y), (x + bar_w, y + bar_h), (50, 50, 50), -1)
+        cv2.rectangle(canvas.img, (x, y), (x + bar_w, y + bar_h), COOLDOWN_BG, -1)
         cv2.rectangle(canvas.img, (x, y), (x + int(bar_w * fill), y + bar_h), color, -1)
 
     def _draw_highlight(self, canvas: Img, col: int, row: int, color_bgr: tuple):

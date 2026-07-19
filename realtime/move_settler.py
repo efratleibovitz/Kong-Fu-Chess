@@ -1,5 +1,6 @@
 # realtime/move_settler.py
 from model.game_state import GameState
+from model.piece import PieceKind
 from rules.capture_rules import CaptureRules
 from model.piece_values import PIECE_VALUES
 from model.move_record import MoveRecord
@@ -29,101 +30,86 @@ class MoveSettler:
 
         settled, bounced = MoveSettler._resolve_conflicts(settled)
 
-        for token, from_pos, to_pos, arrive_time, _, _ in bounced:
-            board.set_token(from_pos, token)
+        for piece, from_pos, to_pos, arrive_time, _, _ in bounced:
+            board.set_piece(from_pos, piece)
             state.cooldowns[(from_pos.col, from_pos.row)] = arrive_time + SHORT_REST_MS
             state.rest_type[(from_pos.col, from_pos.row)] = 'short_rest'
 
-        for token, from_pos, to_pos, arrive_time, _, _ in settled:
-            pass
-
-        # jump interception — remove any settled move whose destination has an active enemy jump
+        # jump interception
         surviving_moves = []
         for move in settled:
-            token, from_pos, to_pos, _, _, _ = move
+            piece, from_pos, to_pos, _, _, _ = move
+            color_char = 'w' if piece.color.value == 'white' else 'b'
             jump_at_dest = any(
-                j[1] == to_pos and j[0][0] != token[0]
+                j[1] == to_pos and j[0].color != piece.color
                 for j in state.pending_jumps
             )
             if jump_at_dest:
-                board.set_token(from_pos, '.')  # intercepted piece is destroyed
-                jumping_color = next(j[0][0] for j in state.pending_jumps if j[1] == to_pos and j[0][0] != token[0])
-                state.captured[jumping_color].append(token)
-                state.scores[jumping_color] += PIECE_VALUES.get(token[1], 0)
+                board.set_piece(from_pos, None)
+                jumping_piece = next(j[0] for j in state.pending_jumps if j[1] == to_pos and j[0].color != piece.color)
+                jumping_color = 'w' if jumping_piece.color.value == 'white' else 'b'
+                state.captured[jumping_color].append(piece)
+                state.scores[jumping_color] += PIECE_VALUES.get(piece.kind, 0)
             else:
                 surviving_moves.append(move)
 
         settled = surviving_moves
 
-        for token, from_pos, to_pos, arrive_time, _depart, mid_path_captures in settled:
-            occupant = board.get_token(to_pos)
-            if occupant != '.' and occupant[0] == token[0]:
-                # friendly piece already there (arrived in a previous frame) — bounce back
-                board.set_token(from_pos, token)
+        for piece, from_pos, to_pos, arrive_time, _depart, mid_path_captures in settled:
+            color_char = 'w' if piece.color.value == 'white' else 'b'
+            occupant = board.get_piece(to_pos)
+            if occupant is not None and occupant.color == piece.color:
+                # friendly piece already there — bounce back
+                board.set_piece(from_pos, piece)
                 state.cooldowns[(from_pos.col, from_pos.row)] = arrive_time + SHORT_REST_MS
                 state.rest_type[(from_pos.col, from_pos.row)] = 'short_rest'
                 continue
+
             if any(CaptureRules.is_king_captured(cap[0]) for cap in mid_path_captures):
                 state.game_over = True
                 for cap, _ in mid_path_captures:
                     if CaptureRules.is_king_captured(cap):
-                        state.loser = cap[0]
+                        state.loser = 'w' if cap.color.value == 'white' else 'b'
 
-            for cap_token, cap_pos in mid_path_captures:
-                board.set_token(cap_pos, '.')
-                state.captured[token[0]].append(cap_token)
-                state.scores[token[0]] += PIECE_VALUES.get(cap_token[1], 0)
+            for cap_piece, cap_pos in mid_path_captures:
+                board.set_piece(cap_pos, None)
+                state.captured[color_char].append(cap_piece)
+                state.scores[color_char] += PIECE_VALUES.get(cap_piece.kind, 0)
 
-            captured = board.get_token(to_pos)
-            board.set_token(from_pos, '.')
-            board.set_token(to_pos, token)
+            captured = board.get_piece(to_pos)
+            board.set_piece(from_pos, None)
+            board.set_piece(to_pos, piece)
 
-            if captured != '.' and captured[0] != token[0]:
-                state.captured[token[0]].append(captured)
-                state.scores[token[0]] += PIECE_VALUES.get(captured[1], 0)
+            if captured is not None and captured.color != piece.color:
+                state.captured[color_char].append(captured)
+                state.scores[color_char] += PIECE_VALUES.get(captured.kind, 0)
 
             if CaptureRules.is_king_captured(captured):
                 state.game_over = True
-                state.loser = captured[0]
+                state.loser = 'w' if captured.color.value == 'white' else 'b'
                 state.events.emit('game_over', loser=state.loser)
 
-            if CaptureRules.should_promote(token, to_pos, board):
-                board.set_token(to_pos, CaptureRules.promote(token))
+            if CaptureRules.should_promote(piece, to_pos, board):
+                promoted = CaptureRules.promote(piece)
+                board.set_piece(to_pos, promoted)
 
             is_king = CaptureRules.is_king_captured(captured) or any(CaptureRules.is_king_captured(c[0]) for c in mid_path_captures)
-            is_queen = (captured != '.' and captured[1] == 'Q') or any(c[0][1] == 'Q' for c in mid_path_captures)
+            is_queen = (captured is not None and captured.kind == PieceKind.QUEEN) or any(c[0].kind == PieceKind.QUEEN for c in mid_path_captures)
             notation = move_to_notation(
-                token[1], from_pos.col, from_pos.row, to_pos.col, to_pos.row,
-                is_capture=(captured != '.' and captured[0] != token[0]) or bool(mid_path_captures),
+                piece.kind.value, from_pos.col, from_pos.row, to_pos.col, to_pos.row,
+                is_capture=(captured is not None and captured.color != piece.color) or bool(mid_path_captures),
                 is_checkmate=is_king,
                 is_check=is_queen and not is_king,
                 board=board
             )
-            state.move_history.append(MoveRecord(time_ms=arrive_time, notation=notation, color=token[0]))
+            state.move_history.append(MoveRecord(time_ms=arrive_time, notation=notation, color=color_char))
 
             state.cooldowns[(to_pos.col, to_pos.row)] = arrive_time + LONG_REST_MS
             state.rest_type[(to_pos.col, to_pos.row)] = 'long_rest'
             state.events.emit('piece_settled')
 
     @staticmethod
-    def _step_before(from_pos, to_pos):
-        """Returns the square one step before to_pos along the from_pos→to_pos path."""
-        from model.position import Position
-        dc = to_pos.col - from_pos.col
-        dr = to_pos.row - from_pos.row
-        dist = max(abs(dc), abs(dr))
-        if dist <= 1:
-            return from_pos
-        col_step = (dc // abs(dc)) if dc != 0 else 0
-        row_step = (dr // abs(dr)) if dr != 0 else 0
-        return Position(to_pos.col - col_step, to_pos.row - row_step)
-
-    @staticmethod
     def _resolve_conflicts(settled: list) -> tuple[list, list]:
-        """
-        Among moves landing on the same square, keep only the one
-        with the earliest depart_time (index 4). Return (winners, losers).
-        """
         winners: dict = {}
         for move in settled:
             key = (move[2].col, move[2].row)

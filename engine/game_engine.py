@@ -44,10 +44,10 @@ class GameEngine:
             return
 
         board = self.state.board
-        dest_token = board.get_token(pos)
+        dest_piece = board.get_piece(pos)
         selected = self.state.selected_position
 
-        if dest_token != '.' and (selected is None or dest_token[0] == board.get_token(selected)[0]):
+        if dest_piece is not None and (selected is None or dest_piece.color == board.get_piece(selected).color):
             if not self._is_in_transit(pos) and not self._is_in_cooldown(pos):
                 self.state.selected_position = pos
                 self.state.events.emit('selection_changed')
@@ -65,11 +65,10 @@ class GameEngine:
         pos = self._pixel_to_cell(x, y)
         if pos is None:
             return
-        token = self.state.board.get_token(pos)
-        if token == '.' or self._is_in_transit(pos) or self._is_airborne(pos):
+        piece = self.state.board.get_piece(pos)
+        if piece is None or self._is_in_transit(pos) or self._is_airborne(pos):
             return
-        #!!!
-        self.state.pending_jumps.append((token, pos, self.state.clock + 1000))
+        self.state.pending_jumps.append((piece, pos, self.state.clock + 1000))
 
     def wait(self, ms: int):
         if self.state.game_over:

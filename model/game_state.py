@@ -34,8 +34,8 @@ class GameState:
 
         pieces = []
         for row_i, row in enumerate(self.board.rows):
-            for col_i, token in enumerate(row):
-                if token == '.':
+            for col_i, piece in enumerate(row):
+                if piece is None:
                     continue
                 key = (col_i, row_i)
                 if key in moving:
@@ -58,6 +58,7 @@ class GameState:
                     fill = 0.0
                     is_long = False
 
+                token = ('w' if piece.color.value == 'white' else 'b') + piece.kind.value
                 pieces.append(PieceRenderInfo(token, col_i, row_i, ps, fill, is_long))
 
         def _player(color: str) -> PlayerRenderInfo:

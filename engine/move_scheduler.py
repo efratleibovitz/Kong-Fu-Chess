@@ -1,6 +1,7 @@
 # engine/move_scheduler.py
 from model.game_state import GameState
 from model.position import Position
+from model.piece import PieceKind
 from rules.collision_rules import CollisionRules, StepResult
 
 
@@ -15,7 +16,6 @@ class MoveScheduler:
 
     @staticmethod
     def has_column_conflict(from_pos: Position, to_pos: Position, state: GameState) -> bool:
-        # only straight horizontal moves can conflict on columns
         if from_pos.row != to_pos.row:
             return False
         new_cols = MoveScheduler._columns_of(from_pos, to_pos)
@@ -45,32 +45,31 @@ class MoveScheduler:
     @staticmethod
     def schedule(from_pos: Position, to_pos: Position, state: GameState):
         board = state.board
-        token = board.get_token(from_pos)
+        piece = board.get_piece(from_pos)
         depart_time = state.clock
-        is_knight = token[1] == 'N'
+        is_knight = piece.kind == PieceKind.KNIGHT
 
         if is_knight:
-            # knights jump — no path collision, go directly to destination
             actual_to = to_pos
-            mid_path_captures: list[str] = []
+            mid_path_captures: list = []
         else:
             path = MoveScheduler._build_path(from_pos, to_pos)
             actual_to = from_pos
             mid_path_captures = []
             for step in path:
-                result = CollisionRules.check_step(step, token, board)
+                result = CollisionRules.check_step(step, piece, board)
                 if result == StepResult.CLEAR:
                     actual_to = step
                 elif result == StepResult.CAPTURE:
-                    cap_token = board.get_token(step)
-                    mid_path_captures.append((cap_token, step))
+                    cap_piece = board.get_piece(step)
+                    mid_path_captures.append((cap_piece, step))
                     actual_to = step
                 elif result == StepResult.BLOCKED:
                     break
 
             if actual_to == from_pos:
-                return  # immediately blocked, no move
+                return
 
         distance = max(abs(actual_to.col - from_pos.col), abs(actual_to.row - from_pos.row))
         arrive_time = depart_time + distance * 500
-        state.pending_moves.append((token, from_pos, actual_to, arrive_time, depart_time, mid_path_captures))
+        state.pending_moves.append((piece, from_pos, actual_to, arrive_time, depart_time, mid_path_captures))

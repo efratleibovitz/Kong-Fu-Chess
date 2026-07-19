@@ -1,8 +1,10 @@
-PIECE_VALUES: dict[str, int] = {
-    'P': 1,
-    'N': 3,
-    'B': 3,
-    'R': 5,
-    'Q': 9,
-    'K': 0,
+from model.piece import PieceKind
+
+PIECE_VALUES: dict[PieceKind, int] = {
+    PieceKind.PAWN:   1,
+    PieceKind.KNIGHT: 3,
+    PieceKind.BISHOP: 3,
+    PieceKind.ROOK:   5,
+    PieceKind.QUEEN:  9,
+    PieceKind.KING:   0,
 }

@@ -12,11 +12,11 @@ class StepResult(Enum):
 
 class CollisionRules:
     @staticmethod
-    def check_step(pos: Position, token: str, board: Board) -> StepResult:
-        """Check what happens when `token` tries to step onto `pos`."""
-        occupant = board.get_token(pos)
-        if occupant == '.':
+    def check_step(pos: Position, piece, board: Board) -> StepResult:
+        """Check what happens when `piece` tries to step onto `pos`."""
+        occupant = board.get_piece(pos)
+        if occupant is None:
             return StepResult.CLEAR
-        if occupant[0] != token[0]:
+        if occupant.color != piece.color:
             return StepResult.CAPTURE
         return StepResult.BLOCKED

@@ -1,4 +1,6 @@
 import re
+from model.piece import Piece
+from model.position import Position
 
 VALID_TOKEN = re.compile(r'^[wb][KQRBNP]$|^\.$')
 
@@ -33,4 +35,9 @@ def validate_board(board_lines):
             if not VALID_TOKEN.match(token):
                 return None, 'UNKNOWN_TOKEN'
 
-    return rows, None
+    piece_rows = [
+        [Piece.from_token(t, Position(c, r)) if t != '.' else None
+         for c, t in enumerate(row)]
+        for r, row in enumerate(rows)
+    ]
+    return piece_rows, None

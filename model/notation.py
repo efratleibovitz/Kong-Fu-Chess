@@ -45,15 +45,17 @@ def _disambiguate(piece_type: str, from_col: int, from_row: int,
     if board is None:
         return ''
 
-    color = board.rows[to_row][to_col][0]  # piece is already at destination
-    token = f"{color}{piece_type}"
+    piece = board.rows[to_row][to_col]  # piece is already at destination
+    color_char = 'w' if piece.color.value == 'white' else 'b'
+    token = color_char + piece_type
 
     rivals = []
     for r in range(board.num_rows):
         for c in range(board.num_cols):
             if (c == to_col and r == to_row) or (c == from_col and r == from_row):
                 continue
-            if board.rows[r][c] == token:
+            p = board.rows[r][c]
+            if p is not None and p.color.value == ('white' if color_char == 'w' else 'black') and p.kind.value == piece_type:
                 rivals.append((c, r))
 
     if not rivals:

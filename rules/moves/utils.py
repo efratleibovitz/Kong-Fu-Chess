@@ -10,7 +10,7 @@ def is_blocked(from_pos: Position, to_pos: Position, board) -> bool:
     step_row = _sign(to_pos.row - from_pos.row)
     col, row = from_pos.col + step_col, from_pos.row + step_row
     while (col, row) != (to_pos.col, to_pos.row):
-        if board.get_token(Position(col, row)) != '.':
+        if board.get_piece(Position(col, row)) is not None:
             return True
         col += step_col
         row += step_row
