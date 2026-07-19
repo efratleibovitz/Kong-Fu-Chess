@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 
 from view.img import Img
-from view.constants import CELL, HUD_W, FPS,WINDOW
+from view.constants import CELL, HUD_W, FPS,WINDOW,SHORT_REST_MS,LONG_REST_MS,BG_COLOR,CHANNELS_RGB
 from engine.game_engine import GameEngine
 from model.game_state import GameState
 from view.loaders.sprite_loader import SpriteLoader
@@ -82,8 +82,6 @@ class Screen:
         cv2.destroyAllWindows()
 
     def _update_cooldown_fills(self):
-        LONG_REST_MS = 2000
-        SHORT_REST_MS = 1000
         clock = self._state.clock
         for piece in self._rs.pieces:
             key = (piece.col, piece.row)
@@ -98,13 +96,13 @@ class Screen:
 
     def _make_canvas(self) -> Img:
         canvas = Img()
-        canvas.img = np.zeros((self._board_h, self._total_w, 3), dtype=np.uint8)
-        canvas.img[:] = (30, 30, 30)
+        canvas.img = np.zeros((self._board_h, self._total_w, CHANNELS_RGB), dtype=np.uint8)
+        canvas.img[:] = BG_COLOR
         return canvas
 
     def _make_board_canvas(self) -> Img:
         canvas = Img()
-        canvas.img = np.zeros((self._board_h, self._board_w, 3), dtype=np.uint8)
+        canvas.img = np.zeros((self._board_h, self._board_w, CHANNELS_RGB), dtype=np.uint8)
         return canvas
 
     def _on_mouse(self, event, x, y, flags, param):

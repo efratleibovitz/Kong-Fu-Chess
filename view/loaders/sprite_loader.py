@@ -1,9 +1,7 @@
 import pathlib
 
 from view.img import Img
-from view.constants import CELL, PieceState
-
-ASSETS = pathlib.Path(__file__).parent.parent / "assets"
+from view.constants import CELL, PieceState,ASSETS
 
 
 def _folder(token: str, piece_set: str = 'pieces_mine') -> pathlib.Path:

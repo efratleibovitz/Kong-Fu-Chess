@@ -2,12 +2,10 @@ import cv2
 import numpy as np
 
 from view.img import Img
-from view.constants import CELL, HUD_W, GOLD, HUD_BG, TEXT_COLOR
+from view.constants import CELL, HUD_W, GOLD, HUD_BG, TEXT_COLOR,CAPTURED_SIZE
 from view.render_state import RenderState
 from view.loaders.sprite_loader import SpriteLoader
 from view.renderers.history_renderer import HistoryRenderer
-
-CAPTURED_SIZE = 28
 
 
 class HUDRenderer:

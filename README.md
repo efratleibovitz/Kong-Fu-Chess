@@ -4,63 +4,60 @@
 ![pytest](https://img.shields.io/badge/Tests-pytest-green)
 ![Coverage](https://img.shields.io/badge/Coverage-HTML%20Report-brightgreen)
 
-Kong Fu Chess is a Python-based chess-style game that combines classic piece movement with a modern, modular architecture. The project demonstrates clean object-oriented design, configurable movement strategies, and a full test-driven development workflow.
+Kong Fu Chess is a Python-based real-time chess-style game with animated sprites, a live HUD, and a clean modular architecture.
 
 ## Overview
 
-This project includes:
 - board parsing and validation
 - movement logic for king, rook, bishop, queen, knight, and pawn
-- timed movement and jump mechanics
-- pawn promotion and double-step behavior
-- unit and integration testing
-- HTML-based coverage reporting
-
-## Features at a Glance
-
-- Modular architecture with clear separation between game logic and UI flow
-- Configurable movement strategies through JSON-based factory mapping
-- Real-time movement behavior with timing and interception rules
-- Extensive test coverage with unit and integration suites
+- real-time timed movement, jumps, captures, and promotions
+- animated piece sprites with idle, move, jump, and rest states
+- cooldown bars and live clock rendered every frame
+- move history with algebraic notation
+- observer/event pattern — UI reacts to game events, not polling
+- unit, integration, and UI test suites
 
 ## Project Structure
 
-- core/ - game engine, entities, and movement logic
-- infrastructure/ - board parsing utilities
-- tests/ - unit and integration test suites
-- main.py - entry point for the application
+- `engine/` - game engine and move scheduler
+- `model/` - board, pieces, game state, event bus, move records, notation
+- `realtime/` - move settler and motion data
+- `rules/` - movement strategies and rule engine
+- `view/` - renderers, sprite loader, screen, constants, render state DTOs
+- `iofiles/` - board parser and printer
+- `input/` - board mapper
+- `tests/` - unit, integration, and UI test suites
+- `main_ui.py` - graphical entry point
+- `main.py` - text entry point
+
+## Architecture Highlights
+
+**Observer pattern** — `GameState` holds an `EventBus`. `MoveSettler` and `GameEngine` fire events (`piece_settled`, `game_over`, `selection_changed`, `restarted`). `Screen` subscribes and sets `_needs_redraw` — no polling.
+
+**DTO layer** — `GameState.to_render_state()` is the only bridge between model and view. All renderers work with `RenderState` — zero model imports in the view layer.
+
+**Real-time rendering** — sprite animations, cooldown bars, and the clock update every frame. Game state is only rebuilt when an event fires.
+
+**Factory pattern** — movement strategies are configured via JSON, new strategies can be added without changing core code.
 
 ## Requirements
 
 - Python 3.10+
+- opencv-python
+- numpy
 - pytest
 - pytest-cov
-
-## How to Play
-
-1. Launch the game with Python.
-2. Enter a board layout and commands through the input flow.
-3. Click or interact with the board to make moves.
-4. Watch timed movement, jumps, captures, and promotions unfold in real time.
-
-## Quick Demo
-
-A typical flow looks like this:
-- select a piece
-- choose a destination
-- wait for the movement animation to complete
-- enjoy promotion, capture, or jump effects as the game evolves
 
 ## Installation
 
 ```bash
-pip install pytest pytest-cov
+pip install opencv-python numpy pytest pytest-cov
 ```
 
 ## Run the Game
 
 ```bash
-python main.py
+python main_ui.py
 ```
 
 ## Run Tests
@@ -75,19 +72,17 @@ pytest -q
 pytest --cov=core --cov-report=html
 ```
 
-The HTML report will be generated in the htmlcov folder.
+## How to Play
 
-## Architecture Highlights
-
-The movement system uses a factory pattern with a JSON-based configuration file, which allows new movement strategies to be added without changing core code. This makes the system easier to extend and maintain.
+1. Run `main_ui.py`
+2. Click anywhere to start
+3. Click a piece to select it
+4. Click a destination to move
+5. Double-click a piece to jump
+6. Press `R` to restart, `Q` to quit
 
 ## Status
 
 - Test suite: passing
-- Coverage report: available in htmlcov
-
-## Future Improvements
-
-- add a graphical user interface
-- expand rule support for additional chess variants
-- improve input handling and user experience
+- UI tests: passing (47 tests)
+- Coverage report: available in `htmlcov/`
