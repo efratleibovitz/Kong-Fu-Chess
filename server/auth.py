@@ -1,7 +1,8 @@
 import hashlib
 import os
+import secrets
 
-from server.db import init_db, create_user, get_user_by_username, get_user_by_id, update_user_elo
+from server.db import init_db, create_user, get_user_by_username, get_user_by_id, update_user_elo, create_session_record, get_user_id_by_token as _db_get_token
 
 _ITERATIONS = 100_000
 _HASH_NAME = "sha256"
@@ -50,3 +51,23 @@ def update_elo(winner_id: int, loser_id: int, k: int = 32) -> tuple[int, int]:
     update_user_elo(loser_id, new_loser_elo)
 
     return new_winner_elo, new_loser_elo
+
+
+def create_session(user_id: int) -> str:
+    init_db()
+    token = secrets.token_urlsafe(32)
+    create_session_record(token, user_id)
+    return token
+
+
+def get_user_id_by_token(token: str) -> int | None:
+    init_db()
+    return _db_get_token(token)
+
+
+def login_with_session(username: str, password: str) -> tuple[int, str] | None:
+    user_id = login(username, password)
+    if user_id is None:
+        return None
+    token = create_session(user_id)
+    return user_id, token

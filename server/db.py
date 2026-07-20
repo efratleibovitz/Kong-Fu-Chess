@@ -18,6 +18,13 @@ def init_db():
                 elo           INTEGER NOT NULL DEFAULT 1200
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS sessions (
+                token      TEXT    PRIMARY KEY,
+                user_id    INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
 
 
 def create_user(username: str, password_hash: str) -> int:
@@ -52,3 +59,19 @@ def update_user_elo(user_id: int, new_elo: int) -> None:
         conn.execute(
             "UPDATE users SET elo = ? WHERE id = ?", (new_elo, user_id)
         )
+
+
+def create_session_record(token: str, user_id: int) -> None:
+    with _connect() as conn:
+        conn.execute(
+            "INSERT INTO sessions (token, user_id) VALUES (?, ?)",
+            (token, user_id),
+        )
+
+
+def get_user_id_by_token(token: str) -> int | None:
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT user_id FROM sessions WHERE token = ?", (token,)
+        ).fetchone()
+        return row[0] if row else None

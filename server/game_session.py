@@ -142,7 +142,13 @@ class _EnumSafeEncoder(json.JSONEncoder):
 
 
 class GameSession:
-    def __init__(self):
+    def __init__(
+        self,
+        white_user_id: int | None = None,
+        white_elo: int | None = None,
+        black_user_id: int | None = None,
+        black_elo: int | None = None,
+    ):
         state = GameState(Board([row[:] for row in DEFAULT_BOARD]))
         state.player_names = {'w': 'White', 'b': 'Black'}
         self.state = state
@@ -151,6 +157,11 @@ class GameSession:
         self.connections: dict[str, "Connection"] = {}
         self._tick_task: asyncio.Task | None = None
         self._tick_counter = 0
+
+        self.white_user_id = white_user_id
+        self.white_elo = white_elo
+        self.black_user_id = black_user_id
+        self.black_elo = black_elo
 
         state.events.subscribe('piece_settled', self._on_state_event)
         state.events.subscribe('selection_changed', self._on_state_event)
