@@ -111,10 +111,8 @@ class Screen:
                 self._started = True
                 self._needs_redraw = True
             return
-        _, _, disp_w, disp_h = cv2.getWindowImageRect(WINDOW)
-        if disp_w > 0 and disp_h > 0:
-            x = int(x * self._total_w / disp_w)
-            y = int(y * self._board_h / disp_h)
+        # Win32 HighGUI already maps mouse coords back into the original
+        # image space on resize, so x/y need no manual rescaling here.
         if x >= self._board_w:
             return
         if event == cv2.EVENT_LBUTTONDBLCLK:

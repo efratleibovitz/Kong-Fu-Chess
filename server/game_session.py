@@ -1,105 +1,3 @@
-# import asyncio
-# import dataclasses
-# import json
-# from model.board import Board
-# from model.game_state import GameState
-# from engine.game_engine import GameEngine
-
-# DEFAULT_BOARD = [
-#     ['bR', 'bN', 'bB', 'bK', 'bQ', 'bB', 'bN', 'bR'],
-#     ['bP', 'bP', 'bP', 'bP', 'bP', 'bP', 'bP', 'bP'],
-#     ['.', '.', '.', '.', '.', '.', '.', '.'],
-#     ['.', '.', '.', '.', '.', '.', '.', '.'],
-#     ['.', '.', '.', '.', '.', '.', '.', '.'],
-#     ['.', '.', '.', '.', '.', '.', '.', '.'],
-#     ['wP', 'wP', 'wP', 'wP', 'wP', 'wP', 'wP', 'wP'],
-#     ['wR', 'wN', 'wB', 'wK', 'wQ', 'wB', 'wN', 'wR'],
-# ]
-
-# TICK_MS = 16
-# TICK_BROADCAST_EVERY = 6   # ~100ms
-
-
-# class GameSession:
-#     def __init__(self):
-#         self._connections = []          # max 2, in join order
-#         self._colors = ['w', 'b']
-#         self.state = GameState(Board([row[:] for row in DEFAULT_BOARD]))
-#         self.state.player_names = {'w': 'White', 'b': 'Black'}
-#         self.engine = GameEngine(self.state)
-#         self._tick_task = None
-#         self._subscribe_events()
-
-#     # ------------------------------------------------------------------ #
-#     # connection management                                                #
-#     # ------------------------------------------------------------------ #
-
-#     def is_full(self) -> bool:
-#         return len(self._connections) >= 2
-
-#     async def add_connection(self, conn):
-#         self._connections.append(conn)
-#         if len(self._connections) == 1:
-#             await conn.send_json({"type": "waiting"})
-#         else:
-#             for c, color in zip(self._connections, self._colors):
-#                 await c.send_json({"type": "start", "color": color})
-#             await self._broadcast_state()
-#             self._tick_task = asyncio.create_task(self._tick_loop())
-
-#     async def remove_connection(self, conn):
-#         if conn in self._connections:
-#             self._connections.remove(conn)
-#         if self._tick_task and len(self._connections) < 2:
-#             self._tick_task.cancel()
-#             self._tick_task = None
-
-#     def color_of(self, conn) -> str:
-#         idx = self._connections.index(conn)
-#         return self._colors[idx]
-
-#     # ------------------------------------------------------------------ #
-#     # tick loop                                                            #
-#     # ------------------------------------------------------------------ #
-
-#     async def _tick_loop(self):
-#         counter = 0
-#         while True:
-#             await asyncio.sleep(TICK_MS / 1000)
-#             self.engine.wait(TICK_MS)
-#             counter += 1
-#             if counter >= TICK_BROADCAST_EVERY:
-#                 counter = 0
-#                 await self._broadcast_tick()
-
-#     # ------------------------------------------------------------------ #
-#     # event bus → broadcast                                               #
-#     # ------------------------------------------------------------------ #
-
-#     def _subscribe_events(self):
-#         for event in ('piece_settled', 'selection_changed', 'game_over'):
-#             self.state.events.subscribe(event, self._on_game_event)
-
-#     def _on_game_event(self, **kwargs):
-#         asyncio.get_event_loop().call_soon_threadsafe(
-#             lambda: asyncio.ensure_future(self._broadcast_state())
-#         )
-
-#     async def _broadcast_state(self):
-#         rs = self.state.to_render_state()
-#         msg = {"type": "state", "data": dataclasses.asdict(rs)}
-#         if self.state.game_over:
-#             await self._broadcast({"type": "game_over", "loser": self.state.loser})
-#         await self._broadcast(msg)
-
-#     async def _broadcast_tick(self):
-#         await self._broadcast({"type": "tick", "clock_ms": self.state.clock})
-
-#     async def _broadcast(self, msg: dict):
-#         text = json.dumps(msg)
-#         for conn in list(self._connections):
-#             await conn.send_raw(text)
-
 
 """server/game_session.py
 
@@ -139,6 +37,17 @@ class _EnumSafeEncoder(json.JSONEncoder):
         if isinstance(obj, Enum):
             return obj.value
         return super().default(obj)
+
+
+_sessions: dict[str, "GameSession"] = {}
+
+
+def register_session(room_id: str, session: "GameSession") -> None:
+    _sessions[room_id] = session
+
+
+def get_session(room_id: str) -> "GameSession | None":
+    return _sessions.get(room_id)
 
 
 class GameSession:
@@ -216,4 +125,4 @@ class GameSession:
             self._tick_counter += 1
             if self._tick_counter >= TICKS_PER_BROADCAST:
                 self._tick_counter = 0
-                await self.broadcast({"type": "tick", "clock_ms": self.state.clock})
+                await self._broadcast_state()

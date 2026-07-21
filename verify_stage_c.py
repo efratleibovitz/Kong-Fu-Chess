@@ -112,8 +112,11 @@ async def check_invalid_token() -> None:
     print("\n-- Check 1: invalid token -> unauthorized --")
     from server.app import matchmaking_handler
 
-    class FakeWS:
+    class FakeRequest:
         path = "/matchmaking?token=totally_forged_token"
+
+    class FakeWS:
+        request = FakeRequest()
         sent: list = []
         closed = False
         async def send(self, data): self.sent.append(json.loads(data))

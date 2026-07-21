@@ -79,7 +79,7 @@ async def _check_loop(entry: dict) -> None:
         if candidate["task"] is not None:
             candidate["task"].cancel()
 
-        from server.game_session import GameSession
+        from server.game_session import GameSession, register_session
         room_id = str(uuid.uuid4())
         session = GameSession(
             white_user_id=entry["user_id"],
@@ -87,6 +87,7 @@ async def _check_loop(entry: dict) -> None:
             black_user_id=candidate["user_id"],
             black_elo=candidate["elo"],
         )
+        register_session(room_id, session)
 
         await entry["ws"].send(json.dumps({"type": "match_found", "color": "w", "room_id": room_id}))
         await candidate["ws"].send(json.dumps({"type": "match_found", "color": "b", "room_id": room_id}))

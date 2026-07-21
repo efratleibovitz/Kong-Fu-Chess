@@ -1,8 +1,9 @@
 # infrastructure/input/board_mapper.py
 from model.position import Position
+from view.constants import CELL
 
 class BoardMapper:
-    CELL_SIZE = 100
+    CELL_SIZE = CELL
 
     @staticmethod
     def pixel_to_cell(x: int, y: int) -> Position:
