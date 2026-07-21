@@ -5,6 +5,7 @@ from server.auth import login_with_session, register
 from client.network_client import NetworkClient
 from client.network_session import NetworkSession
 from view.screen import Screen
+from protocol import COLOR_WHITE, MSG_TYPE_MATCH_FOUND, MSG_TYPE_ERROR
 
 MATCHMAKING_URL = "ws://localhost:8766"
 GAME_URL = "ws://localhost:8765"
@@ -37,9 +38,9 @@ def _connect_matchmaking(token: str) -> dict:
     with websockets.sync.client.connect(f"{MATCHMAKING_URL}?token={token}") as ws:
         for raw in ws:
             msg = json.loads(raw)
-            if msg.get("type") == "match_found":
+            if msg.get("type") == MSG_TYPE_MATCH_FOUND:
                 return msg
-            if msg.get("type") == "error":
+            if msg.get("type") == MSG_TYPE_ERROR:
                 raise RuntimeError(f"matchmaking error: {msg.get('reason')}")
 
 
@@ -51,7 +52,7 @@ def main():
     color = match["color"]
     room_id = match["room_id"]
 
-    print(f"Match found. Playing as {'White' if color == 'w' else 'Black'}.")
+    print(f"Match found. Playing as {'White' if color == COLOR_WHITE else 'Black'}.")
     client = NetworkClient(f"{GAME_URL}?room_id={room_id}&token={token}")
     client.start()
 

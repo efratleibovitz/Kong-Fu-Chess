@@ -2,9 +2,11 @@
 
 import json
 
+from protocol import COLOR_WHITE, COLOR_BLACK, MSG_TYPE_CLICK, MSG_TYPE_JUMP, MSG_TYPE_RESTART, MSG_TYPE_ERROR
+
 
 def _piece_owner(piece) -> str:
-    return 'w' if piece.color.value == 'white' else 'b'
+    return COLOR_WHITE if piece.color.value == 'white' else COLOR_BLACK
 
 
 class Connection:
@@ -23,7 +25,7 @@ class Connection:
     async def run(self):
         self.color = self.session.assign_color(self, self.user_id)
         if self.color is None:
-            await self.send({"type": "error", "reason": "rejected"})
+            await self.send({"type": MSG_TYPE_ERROR, "reason": "rejected"})
             await self.websocket.close()
             return
 
@@ -43,11 +45,11 @@ class Connection:
 
         msg_type = msg.get("type")
 
-        if msg_type == "click":
+        if msg_type == MSG_TYPE_CLICK:
             self._handle_click(msg)
-        elif msg_type == "jump":
+        elif msg_type == MSG_TYPE_JUMP:
             self._handle_jump(msg)
-        elif msg_type == "restart":
+        elif msg_type == MSG_TYPE_RESTART:
             self.session.engine.restart()
 
     def _handle_click(self, msg: dict):

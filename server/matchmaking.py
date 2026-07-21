@@ -5,14 +5,23 @@ import json
 import time
 import uuid
 
+from protocol import COLOR_WHITE, COLOR_BLACK, MSG_TYPE_ERROR, MSG_TYPE_MATCH_FOUND
+
 _queue: list[dict] = []
 _lock = asyncio.Lock()
 CHECK_INTERVAL_SECONDS = 5
+QUEUE_TIMEOUT_SECONDS = 60
+
+INITIAL_ELO_WINDOW = 100
+ELO_EXPANSION_INTERVAL_SECONDS = 15
+ELO_EXPANSION_STEP = 100
+MAX_ELO_WINDOW = 500
 
 
 def _current_window(entered: float) -> int:
     elapsed = time.monotonic() - entered
-    return min(100 + int(elapsed // 15) * 100, 500)
+    expansions = int(elapsed // ELO_EXPANSION_INTERVAL_SECONDS)
+    return min(INITIAL_ELO_WINDOW + expansions * ELO_EXPANSION_STEP, MAX_ELO_WINDOW)
 
 
 async def add_to_queue(ws, user_id: int, elo: int) -> None:
@@ -44,12 +53,12 @@ async def _check_loop(entry: dict) -> None:
         async with _lock:
             elapsed = time.monotonic() - entry["entered"]
 
-            if elapsed >= 60:
+            if elapsed >= QUEUE_TIMEOUT_SECONDS:
                 if not entry["matched"]:
                     entry["matched"] = True
                     if entry in _queue:
                         _queue.remove(entry)
-                    await entry["ws"].send(json.dumps({"type": "error", "reason": "timeout"}))
+                    await entry["ws"].send(json.dumps({"type": MSG_TYPE_ERROR, "reason": "timeout"}))
                 return
 
             window = _current_window(entry["entered"])
@@ -89,6 +98,6 @@ async def _check_loop(entry: dict) -> None:
         )
         register_session(room_id, session)
 
-        await entry["ws"].send(json.dumps({"type": "match_found", "color": "w", "room_id": room_id}))
-        await candidate["ws"].send(json.dumps({"type": "match_found", "color": "b", "room_id": room_id}))
+        await entry["ws"].send(json.dumps({"type": MSG_TYPE_MATCH_FOUND, "color": COLOR_WHITE, "room_id": room_id}))
+        await candidate["ws"].send(json.dumps({"type": MSG_TYPE_MATCH_FOUND, "color": COLOR_BLACK, "room_id": room_id}))
         return

@@ -10,6 +10,7 @@ from server.connection import Connection
 from server.auth import get_user_id_by_token
 from server.db import get_user_by_id, init_db
 from server.matchmaking import add_to_queue
+from protocol import MSG_TYPE_ERROR
 
 HOST = "localhost"
 PORT = 8765
@@ -23,13 +24,13 @@ async def game_handler(websocket):
 
     session = get_session(room_id) if room_id else None
     if session is None:
-        await websocket.send(json.dumps({"type": "error", "reason": "invalid_room"}))
+        await websocket.send(json.dumps({"type": MSG_TYPE_ERROR, "reason": "invalid_room"}))
         await websocket.close()
         return
 
     user_id = get_user_id_by_token(token) if token else None
     if user_id is None:
-        await websocket.send(json.dumps({"type": "error", "reason": "unauthorized"}))
+        await websocket.send(json.dumps({"type": MSG_TYPE_ERROR, "reason": "unauthorized"}))
         await websocket.close()
         return
 
@@ -43,7 +44,7 @@ async def matchmaking_handler(websocket):
 
     user_id = get_user_id_by_token(token) if token else None
     if user_id is None:
-        await websocket.send(json.dumps({"type": "error", "reason": "unauthorized"}))
+        await websocket.send(json.dumps({"type": MSG_TYPE_ERROR, "reason": "unauthorized"}))
         await websocket.close()
         return
 

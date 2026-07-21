@@ -12,6 +12,8 @@ import queue
 import threading
 import websockets.sync.client
 
+from protocol import MSG_TYPE_CLICK, MSG_TYPE_JUMP, MSG_TYPE_RESTART
+
 
 class NetworkClient:
     def __init__(self, url: str):
@@ -39,10 +41,10 @@ class NetworkClient:
         return messages
 
     def send_click(self, col: int, row: int):
-        self._ws.send(json.dumps({"type": "click", "col": col, "row": row}))
+        self._ws.send(json.dumps({"type": MSG_TYPE_CLICK, "col": col, "row": row}))
 
     def send_jump(self, col: int, row: int):
-        self._ws.send(json.dumps({"type": "jump", "col": col, "row": row}))
+        self._ws.send(json.dumps({"type": MSG_TYPE_JUMP, "col": col, "row": row}))
 
     def send_restart(self):
-        self._ws.send(json.dumps({"type": "restart"}))
+        self._ws.send(json.dumps({"type": MSG_TYPE_RESTART}))

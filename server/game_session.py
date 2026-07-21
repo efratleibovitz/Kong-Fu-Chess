@@ -13,6 +13,14 @@ from enum import Enum
 from model.board import Board
 from model.game_state import GameState
 from engine.game_engine import GameEngine
+from protocol import (
+    COLOR_WHITE,
+    COLOR_BLACK,
+    MSG_TYPE_STATE,
+    MSG_TYPE_WAITING,
+    MSG_TYPE_START,
+    MSG_TYPE_GAME_OVER,
+)
 
 TICK_MS = 16
 TICKS_PER_BROADCAST = 6
@@ -60,7 +68,7 @@ class GameSession:
         black_elo: int | None = None,
     ):
         state = GameState(Board([row[:] for row in DEFAULT_BOARD]))
-        state.player_names = {'w': 'White', 'b': 'Black'}
+        state.player_names = {COLOR_WHITE: 'White', COLOR_BLACK: 'Black'}
         self.state = state
         self.engine = GameEngine(state)
 
@@ -84,9 +92,9 @@ class GameSession:
         the color that matches their user_id, and an unrelated/duplicate
         connection is rejected instead of stealing the open slot."""
         if user_id == self.white_user_id:
-            color = 'w'
+            color = COLOR_WHITE
         elif user_id == self.black_user_id:
-            color = 'b'
+            color = COLOR_BLACK
         else:
             return None
         if color in self.connections:
@@ -119,15 +127,15 @@ class GameSession:
             return
         if self.state.game_over:
             return
-        winner = 'b' if color == 'w' else 'w'
+        winner = COLOR_BLACK if color == COLOR_WHITE else COLOR_WHITE
         self.state.game_over = True
         self.state.loser = color
         self.state.events.emit('game_over', loser=color)
         self._apply_elo_update(winner_color=winner, loser_color=color)
 
     def _apply_elo_update(self, winner_color: str, loser_color: str):
-        winner_id = self.white_user_id if winner_color == 'w' else self.black_user_id
-        loser_id = self.white_user_id if loser_color == 'w' else self.black_user_id
+        winner_id = self.white_user_id if winner_color == COLOR_WHITE else self.black_user_id
+        loser_id = self.white_user_id if loser_color == COLOR_WHITE else self.black_user_id
         if winner_id is None or loser_id is None:
             return
         from server.auth import update_elo
@@ -136,11 +144,11 @@ class GameSession:
     async def on_connected(self, connection):
         if not self._game_started:
             if len(self.connections) == 1:
-                await connection.send({"type": "waiting"})
+                await connection.send({"type": MSG_TYPE_WAITING})
             elif len(self.connections) == 2:
                 self._game_started = True
                 for color, conn in self.connections.items():
-                    await conn.send({"type": "start", "color": color})
+                    await conn.send({"type": MSG_TYPE_START, "color": color})
                 self._start_tick_loop()
         else:
             # Reconnect after the game already began: to_render_state()
@@ -150,7 +158,7 @@ class GameSession:
 
     async def _send_resync(self, connection):
         render_state = self.state.to_render_state()
-        payload = json.dumps({"type": "state", "data": dataclasses.asdict(render_state)}, cls=_EnumSafeEncoder)
+        payload = json.dumps({"type": MSG_TYPE_STATE, "data": dataclasses.asdict(render_state)}, cls=_EnumSafeEncoder)
         await connection.send_raw(payload)
 
     async def broadcast(self, message: dict):
@@ -163,11 +171,11 @@ class GameSession:
 
     def _on_game_over(self, loser=None, **_kwargs):
         asyncio.create_task(self._broadcast_state())
-        asyncio.create_task(self.broadcast({"type": "game_over", "loser": loser}))
+        asyncio.create_task(self.broadcast({"type": MSG_TYPE_GAME_OVER, "loser": loser}))
 
     async def _broadcast_state(self):
         render_state = self.state.to_render_state()
-        await self.broadcast({"type": "state", "data": dataclasses.asdict(render_state)})
+        await self.broadcast({"type": MSG_TYPE_STATE, "data": dataclasses.asdict(render_state)})
 
     def _start_tick_loop(self):
         if self._tick_task is None:

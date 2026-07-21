@@ -21,6 +21,7 @@ from view.render_state import RenderState, PieceRenderInfo, MoveArrow
 from input.board_mapper import BoardMapper
 from client.network_client import NetworkClient
 from client.render_state_codec import render_state_from_dict
+from protocol import COLOR_BLACK, MSG_TYPE_STATE, MSG_TYPE_GAME_OVER
 
 NUM_COLS = 8
 NUM_ROWS = 8
@@ -86,19 +87,19 @@ class NetworkSession:
             return
         pos = BoardMapper.pixel_to_cell(x, y)
         col, row = pos.col, pos.row
-        if self._color == 'b':
+        if self._color == COLOR_BLACK:
             col, row = 7 - col, 7 - row
         send_fn(col, row)
 
     def _handle_message(self, msg: dict):
         t = msg.get("type")
-        if t == "state":
+        if t == MSG_TYPE_STATE:
             rs = render_state_from_dict(msg["data"])
-            if self._color == 'b':
+            if self._color == COLOR_BLACK:
                 rs = _flip_render_state(rs)
             self._rs = rs
             self.clock = rs.clock_ms
-        elif t == "game_over":
+        elif t == MSG_TYPE_GAME_OVER:
             if self._rs is not None:
                 self._rs.game_over = True
                 self._rs.loser = msg.get("loser")
