@@ -16,6 +16,7 @@ from engine.game_engine import GameEngine
 
 TICK_MS = 16
 TICKS_PER_BROADCAST = 6
+GRACE_SECONDS = 20
 
 DEFAULT_BOARD = [
     ['bR', 'bN', 'bB', 'bK', 'bQ', 'bB', 'bN', 'bR'],
@@ -66,6 +67,8 @@ class GameSession:
         self.connections: dict[str, "Connection"] = {}
         self._tick_task: asyncio.Task | None = None
         self._tick_counter = 0
+        self._game_started = False
+        self._forfeit_tasks: dict[str, asyncio.Task] = {}
 
         self.white_user_id = white_user_id
         self.white_elo = white_elo
@@ -76,26 +79,79 @@ class GameSession:
         state.events.subscribe('selection_changed', self._on_state_event)
         state.events.subscribe('game_over', self._on_game_over)
 
-    def is_full(self) -> bool:
-        return len(self.connections) >= 2
-
-    def assign_color(self, connection) -> str:
-        color = 'w' if 'w' not in self.connections else 'b'
+    def assign_color(self, connection, user_id: int) -> str | None:
+        """Identity-based, not slot-order: a reconnecting player gets back
+        the color that matches their user_id, and an unrelated/duplicate
+        connection is rejected instead of stealing the open slot."""
+        if user_id == self.white_user_id:
+            color = 'w'
+        elif user_id == self.black_user_id:
+            color = 'b'
+        else:
+            return None
+        if color in self.connections:
+            return None
         self.connections[color] = connection
         return color
 
-    def remove(self, connection):
-        for color, conn in list(self.connections.items()):
+    def on_connect(self, connection):
+        task = self._forfeit_tasks.pop(connection.color, None)
+        if task is not None:
+            task.cancel()
+
+    def on_disconnect(self, connection):
+        color = None
+        for c, conn in list(self.connections.items()):
             if conn is connection:
-                del self.connections[color]
+                color = c
+                del self.connections[c]
+        if color is None or not self._game_started or self.state.game_over:
+            return
+        # Game keeps running for the remaining player during the grace
+        # window (real-time, non-turn-based game) - see _tick_loop, which
+        # is untouched by connection count and only stops on game_over.
+        self._forfeit_tasks[color] = asyncio.create_task(self._forfeit_after_grace(color))
+
+    async def _forfeit_after_grace(self, color: str):
+        try:
+            await asyncio.sleep(GRACE_SECONDS)
+        except asyncio.CancelledError:
+            return
+        if self.state.game_over:
+            return
+        winner = 'b' if color == 'w' else 'w'
+        self.state.game_over = True
+        self.state.loser = color
+        self.state.events.emit('game_over', loser=color)
+        self._apply_elo_update(winner_color=winner, loser_color=color)
+
+    def _apply_elo_update(self, winner_color: str, loser_color: str):
+        winner_id = self.white_user_id if winner_color == 'w' else self.black_user_id
+        loser_id = self.white_user_id if loser_color == 'w' else self.black_user_id
+        if winner_id is None or loser_id is None:
+            return
+        from server.auth import update_elo
+        update_elo(winner_id, loser_id)
 
     async def on_connected(self, connection):
-        if len(self.connections) == 1:
-            await connection.send({"type": "waiting"})
-        elif len(self.connections) == 2:
-            for color, conn in self.connections.items():
-                await conn.send({"type": "start", "color": color})
-            self._start_tick_loop()
+        if not self._game_started:
+            if len(self.connections) == 1:
+                await connection.send({"type": "waiting"})
+            elif len(self.connections) == 2:
+                self._game_started = True
+                for color, conn in self.connections.items():
+                    await conn.send({"type": "start", "color": color})
+                self._start_tick_loop()
+        else:
+            # Reconnect after the game already began: to_render_state()
+            # is always a full snapshot, never a delta, so resync is just
+            # resending it - no separate diffing logic needed.
+            await self._send_resync(connection)
+
+    async def _send_resync(self, connection):
+        render_state = self.state.to_render_state()
+        payload = json.dumps({"type": "state", "data": dataclasses.asdict(render_state)}, cls=_EnumSafeEncoder)
+        await connection.send_raw(payload)
 
     async def broadcast(self, message: dict):
         payload = json.dumps(message, cls=_EnumSafeEncoder)

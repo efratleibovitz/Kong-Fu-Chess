@@ -52,7 +52,7 @@ def main():
     room_id = match["room_id"]
 
     print(f"Match found. Playing as {'White' if color == 'w' else 'Black'}.")
-    client = NetworkClient(f"{GAME_URL}?room_id={room_id}")
+    client = NetworkClient(f"{GAME_URL}?room_id={room_id}&token={token}")
     client.start()
 
     session = NetworkSession(client, color)

@@ -19,6 +19,7 @@ MATCHMAKING_PORT = 8766
 async def game_handler(websocket):
     params = parse_qs(urlparse(websocket.request.path).query)
     room_id = params.get("room_id", [None])[0]
+    token = params.get("token", [None])[0]
 
     session = get_session(room_id) if room_id else None
     if session is None:
@@ -26,12 +27,13 @@ async def game_handler(websocket):
         await websocket.close()
         return
 
-    if session.is_full():
-        await websocket.send(json.dumps({"type": "error", "reason": "room_full"}))
+    user_id = get_user_id_by_token(token) if token else None
+    if user_id is None:
+        await websocket.send(json.dumps({"type": "error", "reason": "unauthorized"}))
         await websocket.close()
         return
 
-    connection = Connection(websocket, session)
+    connection = Connection(websocket, session, user_id)
     await connection.run()
 
 

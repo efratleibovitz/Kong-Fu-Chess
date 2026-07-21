@@ -8,9 +8,10 @@ def _piece_owner(piece) -> str:
 
 
 class Connection:
-    def __init__(self, websocket, session):
+    def __init__(self, websocket, session, user_id: int):
         self.websocket = websocket
         self.session = session
+        self.user_id = user_id
         self.color: str | None = None
 
     async def send(self, message: dict):
@@ -20,13 +21,19 @@ class Connection:
         await self.websocket.send(payload)
 
     async def run(self):
-        self.color = self.session.assign_color(self)
+        self.color = self.session.assign_color(self, self.user_id)
+        if self.color is None:
+            await self.send({"type": "error", "reason": "rejected"})
+            await self.websocket.close()
+            return
+
+        self.session.on_connect(self)
         await self.session.on_connected(self)
         try:
             async for raw in self.websocket:
                 await self._handle_message(raw)
         finally:
-            self.session.remove(self)
+            self.session.on_disconnect(self)
 
     async def _handle_message(self, raw: str):
         try:
