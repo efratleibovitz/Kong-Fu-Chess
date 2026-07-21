@@ -30,9 +30,9 @@ Kong Fu Chess is a Python-based real-time chess-style game with animated sprites
 - `server/` - websocket game server: auth, ELO matchmaking, per-room `GameSession`, disconnect/reconnect handling
 - `client/` - network transport and a thin adapter that lets the existing `Screen` drive networked play unmodified
 - `tests/` - unit, integration, and UI test suites
-- `main_ui.py` - single-player graphical entry point
-- `main_network.py` - online 2-player graphical entry point
-- `main.py` - text entry point
+- `main.py` - **the one entry point** — `python main.py [--gui | --online | --server]` (see below)
+- `main_ui.py` - single-player graphical mode (also runnable directly)
+- `main_network.py` - online 2-player graphical client (also runnable directly)
 - `verify_stage_c.py` / `verify_stage_d_manual.py` - standalone scripts that exercise matchmaking and disconnect/reconnect against a real running server
 
 ## Architecture Highlights
@@ -66,10 +66,23 @@ Kong Fu Chess is a Python-based real-time chess-style game with animated sprites
 pip install -r requirements.txt
 ```
 
+## One Entry Point
+
+Everything runs through `main.py`:
+
+```bash
+python main.py            # solo, text mode
+python main.py --gui      # solo, graphical
+python main.py --online   # online 2-player client
+python main.py --server   # start the game server
+```
+
+(`main_ui.py`, `main_network.py`, and `server/app.py` still work if run directly by name — `main.py` is just a thin router on top, no logic duplicated.)
+
 ## Play Solo
 
 ```bash
-python main_ui.py
+python main.py --gui
 ```
 
 1. Click anywhere to start
@@ -83,7 +96,7 @@ python main_ui.py
 **1. Start the server** (leave running in its own terminal):
 
 ```bash
-python -m server.app
+python main.py --server
 ```
 
 This starts the game server on `ws://localhost:8765` and the matchmaking server on `ws://localhost:8766`.
@@ -91,7 +104,7 @@ This starts the game server on `ws://localhost:8765` and the matchmaking server 
 **2. Start a client, once per player, each in its own terminal:**
 
 ```bash
-python main_network.py
+python main.py --online
 ```
 
 You'll be prompted to `[1] Register` or `[2] Login` with a username/password. Once authenticated, the client joins the matchmaking queue automatically.

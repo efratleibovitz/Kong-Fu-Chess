@@ -4,13 +4,13 @@
 
 Kong-Fu Chess is a real-time chess-style game with animated sprites and a live HUD.
 The goal is to keep game logic correct and the architecture clean and modular.
-It runs solo (`main_ui.py`) or online 2-player over a websocket server (`main_network.py` + `server/`).
+It runs solo (text or graphical) or online 2-player over a websocket server, all through one entry point.
 
 ## Core architecture
 
-- Graphical entry point (solo): `main_ui.py`
-- Graphical entry point (online): `main_network.py`
-- Text entry point: `main.py`
+- Entry point: `main.py` — `python main.py [--gui | --online | --server]`; no flags = text mode (default, matches historical behavior), `--gui` = solo graphical, `--online` = online 2-player client, `--server` = start the game server. Each flag just imports and calls the existing `main()` from the module below — no logic is duplicated in `main.py` itself.
+- Graphical entry point (solo), also runnable directly: `main_ui.py`
+- Graphical entry point (online), also runnable directly: `main_network.py`
 - Game engine: `engine/game_engine.py`
 - Move scheduler: `engine/move_scheduler.py`
 - Board model: `model/board.py`

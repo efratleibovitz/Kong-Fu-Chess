@@ -19,23 +19,21 @@ def test_main_select_and_move():
 
 def test_main_error_unknown_token(capsys, monkeypatch):
     from io import StringIO
-    import importlib
+    import main
 
     input_text = 'Board:\nwK xZ\n. .\nCommands:\nprint board\n'
     monkeypatch.setattr('sys.stdin', StringIO(input_text))
-    import main
-    importlib.reload(main)
+    main._run_text_mode()
     captured = capsys.readouterr()
     assert captured.out.strip() == 'ERROR UNKNOWN_TOKEN'
 
 
 def test_main_error_row_width_mismatch(capsys, monkeypatch):
     from io import StringIO
-    import importlib
+    import main
 
     input_text = 'Board:\nwK . .\n. bK\nCommands:\nprint board\n'
     monkeypatch.setattr('sys.stdin', StringIO(input_text))
-    import main
-    importlib.reload(main)
+    main._run_text_mode()
     captured = capsys.readouterr()
     assert captured.out.strip() == 'ERROR ROW_WIDTH_MISMATCH'
