@@ -3,9 +3,19 @@
 import json
 from urllib.parse import urlparse, parse_qs
 
-from server.core.protocol import COLOR_WHITE, COLOR_BLACK, MSG_TYPE_CLICK, MSG_TYPE_JUMP, MSG_TYPE_RESTART, MSG_TYPE_ERROR
+from server.core.protocol import (
+    COLOR_WHITE,
+    COLOR_BLACK,
+    MSG_TYPE_CLICK,
+    MSG_TYPE_JUMP,
+    MSG_TYPE_RESTART,
+    MSG_TYPE_ERROR,
+    MSG_TYPE_ROLE,
+    Role,
+)
 from server.auth.service import get_user_id_by_token
 from server.game.session import get_session
+from server.game.rooms import create_room
 
 
 def _piece_owner(piece) -> str:
@@ -17,15 +27,18 @@ async def game_handler(websocket):
     room_id = params.get("room_id", [None])[0]
     token = params.get("token", [None])[0]
 
-    session = get_session(room_id) if room_id else None
-    if session is None:
-        await websocket.send(json.dumps({"type": MSG_TYPE_ERROR, "reason": "invalid_room"}))
-        await websocket.close()
-        return
-
     user_id = get_user_id_by_token(token) if token else None
     if user_id is None:
         await websocket.send(json.dumps({"type": MSG_TYPE_ERROR, "reason": "unauthorized"}))
+        await websocket.close()
+        return
+
+    if not room_id:
+        room_id = create_room()
+
+    session = get_session(room_id)
+    if session is None:
+        await websocket.send(json.dumps({"type": MSG_TYPE_ERROR, "reason": "invalid_room"}))
         await websocket.close()
         return
 
@@ -39,6 +52,7 @@ class Connection:
         self.session = session
         self.user_id = user_id
         self.color: str | None = None
+        self.is_viewer = False
 
     async def send(self, message: dict):
         await self.websocket.send(json.dumps(message))
@@ -47,11 +61,17 @@ class Connection:
         await self.websocket.send(payload)
 
     async def run(self):
-        self.color = self.session.assign_color(self, self.user_id)
-        if self.color is None:
+        role = self.session.assign_color(self, self.user_id)
+        if role is None:
             await self.send({"type": MSG_TYPE_ERROR, "reason": "rejected"})
             await self.websocket.close()
             return
+
+        if role is Role.VIEWER:
+            self.is_viewer = True
+        else:
+            self.color = role.value
+        await self.send({"type": MSG_TYPE_ROLE, "role": role.value})
 
         self.session.on_connect(self)
         await self.session.on_connected(self)
@@ -62,6 +82,8 @@ class Connection:
             self.session.on_disconnect(self)
 
     async def _handle_message(self, raw: str):
+        if self.is_viewer:
+            return
         try:
             msg = json.loads(raw)
         except (json.JSONDecodeError, TypeError):

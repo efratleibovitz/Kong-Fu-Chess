@@ -21,7 +21,7 @@ from view.render_state import RenderState, PieceRenderInfo, MoveArrow
 from input.board_mapper import BoardMapper
 from client.network_client import NetworkClient
 from client.render_state_codec import render_state_from_dict
-from server.core.protocol import COLOR_BLACK, MSG_TYPE_STATE, MSG_TYPE_GAME_OVER
+from server.core.protocol import COLOR_WHITE, COLOR_BLACK, MSG_TYPE_STATE, MSG_TYPE_GAME_OVER
 
 NUM_COLS = 8
 NUM_ROWS = 8
@@ -78,11 +78,15 @@ class NetworkSession:
         self._send(x, y, self._client.send_jump)
 
     def restart(self):
+        if self._color not in (COLOR_WHITE, COLOR_BLACK):
+            return
         self._client.send_restart()
 
     # --- internals ---
 
     def _send(self, x: int, y: int, send_fn):
+        if self._color not in (COLOR_WHITE, COLOR_BLACK):
+            return
         if not BoardMapper.is_within_bounds(x, y, NUM_COLS, NUM_ROWS):
             return
         pos = BoardMapper.pixel_to_cell(x, y)

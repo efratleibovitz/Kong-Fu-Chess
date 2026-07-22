@@ -19,7 +19,9 @@ from server.core.protocol import (
     MSG_TYPE_WAITING,
     MSG_TYPE_START,
     MSG_TYPE_GAME_OVER,
+    Role,
 )
+from server.core.game_logger import attach_event_logger
 
 TICK_MS = 16
 TICKS_PER_BROADCAST = 6
@@ -52,6 +54,8 @@ _sessions: dict[str, "GameSession"] = {}
 
 def register_session(room_id: str, session: "GameSession") -> None:
     _sessions[room_id] = session
+    session.room_id = room_id
+    attach_event_logger(session.state.events, room_id)
 
 
 def get_session(room_id: str) -> "GameSession | None":
@@ -65,13 +69,17 @@ class GameSession:
         white_elo: int | None = None,
         black_user_id: int | None = None,
         black_elo: int | None = None,
+        allow_viewers: bool = False,
     ):
         state = GameState(Board([row[:] for row in DEFAULT_BOARD]))
         state.player_names = {COLOR_WHITE: 'White', COLOR_BLACK: 'Black'}
         self.state = state
         self.engine = GameEngine(state)
 
+        self.room_id: str | None = None
         self.connections: dict[str, "Connection"] = {}
+        self.viewers: list = []
+        self.allow_viewers = allow_viewers
         self._tick_task: asyncio.Task | None = None
         self._tick_counter = 0
         self._game_started = False
@@ -86,27 +94,45 @@ class GameSession:
         state.events.subscribe('selection_changed', self._on_state_event)
         state.events.subscribe('game_over', self._on_game_over)
 
-    def assign_color(self, connection, user_id: int) -> str | None:
+    def assign_color(self, connection, user_id: int) -> Role | None:
         """Identity-based, not slot-order: a reconnecting player gets back
         the color that matches their user_id, and an unrelated/duplicate
-        connection is rejected instead of stealing the open slot."""
+        connection is rejected instead of stealing the open slot - unless
+        `allow_viewers` (Stage E rooms), in which case the first two
+        distinct joiners claim the open color slots and anyone after that
+        becomes a read-only Role.VIEWER instead of being rejected."""
         if user_id == self.white_user_id:
-            color = COLOR_WHITE
+            role = Role.WHITE
         elif user_id == self.black_user_id:
-            color = COLOR_BLACK
+            role = Role.BLACK
+        elif self.allow_viewers and self.white_user_id is None:
+            self.white_user_id = user_id
+            role = Role.WHITE
+        elif self.allow_viewers and self.black_user_id is None:
+            self.black_user_id = user_id
+            role = Role.BLACK
+        elif self.allow_viewers:
+            self.viewers.append(connection)
+            return Role.VIEWER
         else:
             return None
-        if color in self.connections:
+
+        if role.value in self.connections:
             return None
-        self.connections[color] = connection
-        return color
+        self.connections[role.value] = connection
+        return role
 
     def on_connect(self, connection):
+        if connection in self.viewers:
+            return
         task = self._forfeit_tasks.pop(connection.color, None)
         if task is not None:
             task.cancel()
 
     def on_disconnect(self, connection):
+        if connection in self.viewers:
+            self.viewers.remove(connection)
+            return
         color = None
         for c, conn in list(self.connections.items()):
             if conn is connection:
@@ -143,7 +169,7 @@ class GameSession:
     async def on_connected(self, connection):
         if not self._game_started:
             if len(self.connections) == 1:
-                await connection.send({"type": MSG_TYPE_WAITING})
+                await connection.send({"type": MSG_TYPE_WAITING, "room_id": self.room_id})
             elif len(self.connections) == 2:
                 self._game_started = True
                 for color, conn in self.connections.items():
@@ -162,7 +188,7 @@ class GameSession:
 
     async def broadcast(self, message: dict):
         payload = json.dumps(message, cls=_EnumSafeEncoder)
-        for conn in list(self.connections.values()):
+        for conn in list(self.connections.values()) + list(self.viewers):
             await conn.send_raw(payload)
 
     def _on_state_event(self, **_kwargs):

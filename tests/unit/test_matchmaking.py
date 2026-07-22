@@ -3,8 +3,11 @@
 import asyncio
 import json
 import time
+import types
 import pytest
+import server.core.game_logger as game_logger
 import server.matchmaking.queue as matchmaking
+from model.event_bus import EventBus
 from server.matchmaking.queue import _check_loop
 
 
@@ -32,7 +35,9 @@ def _make_entry(ws, user_id, elo, elapsed=0):
 
 class MockGameSession:
     def __init__(self, **kwargs):
-        pass
+        # register_session() attaches a per-room event logger via
+        # session.state.events - a minimal stand-in is needed here too.
+        self.state = types.SimpleNamespace(events=EventBus())
 
 
 @pytest.fixture(autouse=True)
@@ -50,6 +55,11 @@ def fast_interval(monkeypatch):
 @pytest.fixture(autouse=True)
 def mock_game_session(monkeypatch):
     monkeypatch.setattr("server.game.session.GameSession", MockGameSession)
+
+
+@pytest.fixture(autouse=True)
+def redirect_log_dir(tmp_path, monkeypatch):
+    monkeypatch.setattr(game_logger, "LOG_DIR", str(tmp_path))
 
 
 class TestMatchmaking:
