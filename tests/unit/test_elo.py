@@ -11,9 +11,9 @@ def run_elo(winner_elo, loser_elo, k=32):
     winner = make_user(1, winner_elo)
     loser = make_user(2, loser_elo)
 
-    with patch("server.auth.get_user_by_id", side_effect=lambda uid: winner if uid == 1 else loser), \
-         patch("server.auth.update_user_elo", return_value=None):
-        from server.auth import update_elo
+    with patch("server.auth.service.get_user_by_id", side_effect=lambda uid: winner if uid == 1 else loser), \
+         patch("server.auth.service.update_user_elo", return_value=None):
+        from server.auth.service import update_elo
         return update_elo(1, 2, k)
 
 

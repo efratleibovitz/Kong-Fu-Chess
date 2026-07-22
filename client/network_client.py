@@ -12,7 +12,7 @@ import queue
 import threading
 import websockets.sync.client
 
-from protocol import MSG_TYPE_CLICK, MSG_TYPE_JUMP, MSG_TYPE_RESTART
+from server.core.protocol import MSG_TYPE_CLICK, MSG_TYPE_JUMP, MSG_TYPE_RESTART
 
 
 class NetworkClient:

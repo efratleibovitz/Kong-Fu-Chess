@@ -1,8 +1,7 @@
 
-"""server/game_session.py
+"""server/game/session.py
 
-GameSession owns a single game's GameState + GameEngine (Stage A: exactly
-one session, no rooms yet).
+GameSession owns a single game's GameState + GameEngine.
 """
 
 import asyncio
@@ -13,7 +12,7 @@ from enum import Enum
 from model.board import Board
 from model.game_state import GameState
 from engine.game_engine import GameEngine
-from protocol import (
+from server.core.protocol import (
     COLOR_WHITE,
     COLOR_BLACK,
     MSG_TYPE_STATE,
@@ -138,7 +137,7 @@ class GameSession:
         loser_id = self.white_user_id if loser_color == COLOR_WHITE else self.black_user_id
         if winner_id is None or loser_id is None:
             return
-        from server.auth import update_elo
+        from server.auth.service import update_elo
         update_elo(winner_id, loser_id)
 
     async def on_connected(self, connection):

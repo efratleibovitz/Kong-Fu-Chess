@@ -23,14 +23,14 @@ import tempfile
 import time
 
 # -- redirect db to a temp file before any server imports --------------------
-import server.db as _db
+import server.core.database as _db
 _tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
 _tmp.close()
 _db.DB_PATH = _tmp.name
 
-import server.matchmaking as matchmaking
-from server.auth import register, login_with_session, get_user_id_by_token
-from server.db import init_db, get_user_by_id, update_user_elo, get_user_by_username
+import server.matchmaking.queue as matchmaking
+from server.auth.service import register, login_with_session, get_user_id_by_token
+from server.core.database import init_db, get_user_by_id, update_user_elo, get_user_by_username
 
 # ---------------------------------------------------------------------------
 # result tracking
@@ -86,13 +86,13 @@ def setup_user(username: str, password: str, elo: int) -> tuple[int, str]:
 
 
 def patch_session(monkeypatch_dict: dict) -> None:
-    import server.game_session as gs
+    import server.game.session as gs
     monkeypatch_dict["_orig"] = gs.GameSession
     gs.GameSession = MockGameSession
 
 
 def unpatch_session(monkeypatch_dict: dict) -> None:
-    import server.game_session as gs
+    import server.game.session as gs
     gs.GameSession = monkeypatch_dict["_orig"]
 
 
@@ -110,7 +110,7 @@ async def run_with_fast_interval(coro, interval=0.05):
 # ===========================================================================
 async def check_invalid_token() -> None:
     print("\n-- Check 1: invalid token -> unauthorized --")
-    from server.app import matchmaking_handler
+    from server.matchmaking.handler import matchmaking_handler
 
     class FakeRequest:
         path = "/matchmaking?token=totally_forged_token"

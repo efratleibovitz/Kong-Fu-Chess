@@ -23,7 +23,7 @@ import uuid
 
 import websockets.sync.client
 
-from server.auth import register, login_with_session
+from server.auth.service import register, login_with_session
 
 MATCHMAKING_URL = "ws://localhost:8766"
 GAME_URL = "ws://localhost:8765"

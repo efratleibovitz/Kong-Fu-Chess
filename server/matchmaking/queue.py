@@ -1,11 +1,11 @@
-"""server/matchmaking.py"""
+"""server/matchmaking/queue.py"""
 
 import asyncio
 import json
 import time
 import uuid
 
-from protocol import COLOR_WHITE, COLOR_BLACK, MSG_TYPE_ERROR, MSG_TYPE_MATCH_FOUND
+from server.core.protocol import COLOR_WHITE, COLOR_BLACK, MSG_TYPE_ERROR, MSG_TYPE_MATCH_FOUND
 
 _queue: list[dict] = []
 _lock = asyncio.Lock()
@@ -88,7 +88,7 @@ async def _check_loop(entry: dict) -> None:
         if candidate["task"] is not None:
             candidate["task"].cancel()
 
-        from server.game_session import GameSession, register_session
+        from server.game.session import GameSession, register_session
         room_id = str(uuid.uuid4())
         session = GameSession(
             white_user_id=entry["user_id"],

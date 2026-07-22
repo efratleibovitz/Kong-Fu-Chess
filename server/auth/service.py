@@ -2,7 +2,7 @@ import hashlib
 import os
 import secrets
 
-from server.db import init_db, create_user, get_user_by_username, get_user_by_id, update_user_elo, create_session_record, get_user_id_by_token as _db_get_token
+from server.core.database import init_db, create_user, get_user_by_username, get_user_by_id, update_user_elo, create_session_record, get_user_id_by_token as _db_get_token
 
 _ITERATIONS = 100_000
 _HASH_NAME = "sha256"
@@ -40,7 +40,7 @@ def login(username: str, password: str) -> int | None:
 def update_elo(winner_id: int, loser_id: int, k: int = 32) -> tuple[int, int]:
     winner = get_user_by_id(winner_id)
     loser = get_user_by_id(loser_id)
-
+    #magc numbers!!! attantion to change
     ew = 1 / (1 + 10 ** ((loser["elo"] - winner["elo"]) / 400))
     el = 1 - ew
 

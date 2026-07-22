@@ -1,11 +1,11 @@
 import json
 import websockets.sync.client
 
-from server.auth import login_with_session, register
+from server.auth.service import login_with_session, register
 from client.network_client import NetworkClient
 from client.network_session import NetworkSession
 from view.screen import Screen
-from protocol import COLOR_WHITE, MSG_TYPE_MATCH_FOUND, MSG_TYPE_ERROR
+from server.core.protocol import COLOR_WHITE, MSG_TYPE_MATCH_FOUND, MSG_TYPE_ERROR
 
 MATCHMAKING_URL = "ws://localhost:8766"
 GAME_URL = "ws://localhost:8765"

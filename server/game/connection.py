@@ -1,12 +1,36 @@
-"""server/connection.py"""
+"""server/game/connection.py"""
 
 import json
+from urllib.parse import urlparse, parse_qs
 
-from protocol import COLOR_WHITE, COLOR_BLACK, MSG_TYPE_CLICK, MSG_TYPE_JUMP, MSG_TYPE_RESTART, MSG_TYPE_ERROR
+from server.core.protocol import COLOR_WHITE, COLOR_BLACK, MSG_TYPE_CLICK, MSG_TYPE_JUMP, MSG_TYPE_RESTART, MSG_TYPE_ERROR
+from server.auth.service import get_user_id_by_token
+from server.game.session import get_session
 
 
 def _piece_owner(piece) -> str:
     return COLOR_WHITE if piece.color.value == 'white' else COLOR_BLACK
+
+
+async def game_handler(websocket):
+    params = parse_qs(urlparse(websocket.request.path).query)
+    room_id = params.get("room_id", [None])[0]
+    token = params.get("token", [None])[0]
+
+    session = get_session(room_id) if room_id else None
+    if session is None:
+        await websocket.send(json.dumps({"type": MSG_TYPE_ERROR, "reason": "invalid_room"}))
+        await websocket.close()
+        return
+
+    user_id = get_user_id_by_token(token) if token else None
+    if user_id is None:
+        await websocket.send(json.dumps({"type": MSG_TYPE_ERROR, "reason": "unauthorized"}))
+        await websocket.close()
+        return
+
+    connection = Connection(websocket, session, user_id)
+    await connection.run()
 
 
 class Connection:
@@ -92,5 +116,3 @@ class Connection:
                 return True
 
         return False
-    
-    

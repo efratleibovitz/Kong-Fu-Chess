@@ -4,8 +4,8 @@ import asyncio
 import json
 import time
 import pytest
-import server.matchmaking as matchmaking
-from server.matchmaking import _check_loop
+import server.matchmaking.queue as matchmaking
+from server.matchmaking.queue import _check_loop
 
 
 class MockWS:
@@ -49,7 +49,7 @@ def fast_interval(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def mock_game_session(monkeypatch):
-    monkeypatch.setattr("server.game_session.GameSession", MockGameSession)
+    monkeypatch.setattr("server.game.session.GameSession", MockGameSession)
 
 
 class TestMatchmaking:

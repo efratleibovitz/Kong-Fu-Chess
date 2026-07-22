@@ -1,57 +1,16 @@
-"""server/app.py"""
+"""server/app.py
+
+Entry point: initializes the database, starts the game and matchmaking
+websocket servers, and routes incoming connections to their handlers.
+"""
 
 import asyncio
-import json
 import websockets
-from urllib.parse import urlparse, parse_qs
 
-from server.game_session import get_session
-from server.connection import Connection
-from server.auth import get_user_id_by_token
-from server.db import get_user_by_id, init_db
-from server.matchmaking import add_to_queue
-from protocol import MSG_TYPE_ERROR
-
-HOST = "localhost"
-PORT = 8765
-MATCHMAKING_PORT = 8766
-
-
-async def game_handler(websocket):
-    params = parse_qs(urlparse(websocket.request.path).query)
-    room_id = params.get("room_id", [None])[0]
-    token = params.get("token", [None])[0]
-
-    session = get_session(room_id) if room_id else None
-    if session is None:
-        await websocket.send(json.dumps({"type": MSG_TYPE_ERROR, "reason": "invalid_room"}))
-        await websocket.close()
-        return
-
-    user_id = get_user_id_by_token(token) if token else None
-    if user_id is None:
-        await websocket.send(json.dumps({"type": MSG_TYPE_ERROR, "reason": "unauthorized"}))
-        await websocket.close()
-        return
-
-    connection = Connection(websocket, session, user_id)
-    await connection.run()
-
-
-async def matchmaking_handler(websocket):
-    params = parse_qs(urlparse(websocket.request.path).query)
-    token = params.get("token", [None])[0]
-
-    user_id = get_user_id_by_token(token) if token else None
-    if user_id is None:
-        await websocket.send(json.dumps({"type": MSG_TYPE_ERROR, "reason": "unauthorized"}))
-        await websocket.close()
-        return
-
-    user = get_user_by_id(user_id)
-    elo = user["elo"]
-
-    await add_to_queue(websocket, user_id, elo)
+from server.core.database import init_db
+from server.core.protocol import HOST, PORT, MATCHMAKING_PORT
+from server.game.connection import game_handler
+from server.matchmaking.handler import matchmaking_handler
 
 
 async def main():

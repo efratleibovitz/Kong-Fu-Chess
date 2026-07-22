@@ -21,7 +21,7 @@ from view.render_state import RenderState, PieceRenderInfo, MoveArrow
 from input.board_mapper import BoardMapper
 from client.network_client import NetworkClient
 from client.render_state_codec import render_state_from_dict
-from protocol import COLOR_BLACK, MSG_TYPE_STATE, MSG_TYPE_GAME_OVER
+from server.core.protocol import COLOR_BLACK, MSG_TYPE_STATE, MSG_TYPE_GAME_OVER
 
 NUM_COLS = 8
 NUM_ROWS = 8
