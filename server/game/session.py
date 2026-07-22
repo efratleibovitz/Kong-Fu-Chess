@@ -21,7 +21,8 @@ from server.core.protocol import (
     MSG_TYPE_GAME_OVER,
     Role,
 )
-from server.core.game_logger import attach_event_logger
+from server.core.database import get_user_by_id
+from server.core.game_logger import get_room_logger, log_action
 
 TICK_MS = 16
 TICKS_PER_BROADCAST = 6
@@ -55,7 +56,7 @@ _sessions: dict[str, "GameSession"] = {}
 def register_session(room_id: str, session: "GameSession") -> None:
     _sessions[room_id] = session
     session.room_id = room_id
-    attach_event_logger(session.state.events, room_id)
+    get_room_logger(room_id)
 
 
 def get_session(room_id: str) -> "GameSession | None":
@@ -155,7 +156,7 @@ class GameSession:
         winner = COLOR_BLACK if color == COLOR_WHITE else COLOR_WHITE
         self.state.game_over = True
         self.state.loser = color
-        self.state.events.emit('game_over', loser=color)
+        self.state.events.emit('game_over', loser=color, reason='forfeit (disconnect grace expired)')
         self._apply_elo_update(winner_color=winner, loser_color=color)
 
     def _apply_elo_update(self, winner_color: str, loser_color: str):
@@ -194,9 +195,20 @@ class GameSession:
     def _on_state_event(self, **_kwargs):
         asyncio.create_task(self._broadcast_state())
 
-    def _on_game_over(self, loser=None, **_kwargs):
+    def _on_game_over(self, loser=None, reason='capture', **_kwargs):
         asyncio.create_task(self._broadcast_state())
         asyncio.create_task(self.broadcast({"type": MSG_TYPE_GAME_OVER, "loser": loser}))
+        self._log_game_over(loser, reason)
+
+    def _log_game_over(self, loser: str | None, reason: str) -> None:
+        if loser is None or self.room_id is None:
+            return
+        loser_id = self.white_user_id if loser == COLOR_WHITE else self.black_user_id
+        if loser_id is None:
+            return
+        user = get_user_by_id(loser_id)
+        username = user["username"] if user else "unknown"
+        log_action(self.room_id, loser_id, username, loser, "game_over", reason)
 
     async def _broadcast_state(self):
         render_state = self.state.to_render_state()

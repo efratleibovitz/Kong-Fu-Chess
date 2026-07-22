@@ -118,7 +118,7 @@ def main():
     client.start()
 
     session = NetworkSession(client, role)
-    Screen(session, session).run()
+    Screen(session, session, window_title=f"Kong-Fu Chess - {_role_label(role)}").run()
 
 
 if __name__ == "__main__":

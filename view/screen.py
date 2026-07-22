@@ -13,9 +13,10 @@ from view.renderers.overlay_renderer import OverlayRenderer
 
 
 class Screen:
-    def __init__(self, engine: GameEngine, state: GameState):
+    def __init__(self, engine: GameEngine, state: GameState, window_title: str | None = None):
         self._engine = engine
         self._state = state
+        self._window_title = window_title
         loader = SpriteLoader()
         self._board_renderer = BoardRenderer(loader)
         self._hud_renderer = HUDRenderer(loader, state.board.num_rows * CELL)
@@ -41,6 +42,8 @@ class Screen:
 
     def run(self):
         cv2.namedWindow(WINDOW, cv2.WINDOW_NORMAL)
+        if self._window_title:
+            cv2.setWindowTitle(WINDOW, self._window_title)
         cv2.resizeWindow(WINDOW, self._total_w, self._board_h)
         cv2.setMouseCallback(WINDOW, self._on_mouse)
         frame_ms = int(1000 / FPS)
@@ -78,6 +81,8 @@ class Screen:
                 break
             if key == ord('r'):
                 self._engine.restart()
+            if cv2.getWindowProperty(WINDOW, cv2.WND_PROP_VISIBLE) < 1:
+                break
 
         cv2.destroyAllWindows()
 

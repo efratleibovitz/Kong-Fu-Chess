@@ -14,6 +14,8 @@ from server.core.protocol import (
     Role,
 )
 from server.auth.service import get_user_id_by_token
+from server.core.database import get_user_by_id
+from server.core.game_logger import log_action
 from server.game.session import get_session
 from server.game.rooms import create_room
 
@@ -51,14 +53,19 @@ class Connection:
         self.websocket = websocket
         self.session = session
         self.user_id = user_id
+        self.username = "unknown"
         self.color: str | None = None
         self.is_viewer = False
+        self._role: Role | None = None
 
     async def send(self, message: dict):
         await self.websocket.send(json.dumps(message))
 
     async def send_raw(self, payload: str):
         await self.websocket.send(payload)
+
+    def _log(self, action: str, comment: str = "") -> None:
+        log_action(self.session.room_id, self.user_id, self.username, self._role, action, comment)
 
     async def run(self):
         role = self.session.assign_color(self, self.user_id)
@@ -67,11 +74,15 @@ class Connection:
             await self.websocket.close()
             return
 
+        self._role = role
         if role is Role.VIEWER:
             self.is_viewer = True
         else:
             self.color = role.value
+        user = get_user_by_id(self.user_id)
+        self.username = user["username"] if user else "unknown"
         await self.send({"type": MSG_TYPE_ROLE, "role": role.value})
+        self._log("connect")
 
         self.session.on_connect(self)
         await self.session.on_connected(self)
@@ -79,6 +90,7 @@ class Connection:
             async for raw in self.websocket:
                 await self._handle_message(raw)
         finally:
+            self._log("disconnect")
             self.session.on_disconnect(self)
 
     async def _handle_message(self, raw: str):
@@ -97,6 +109,7 @@ class Connection:
             self._handle_jump(msg)
         elif msg_type == MSG_TYPE_RESTART:
             self.session.engine.restart()
+            self._log("restart")
 
     def _handle_click(self, msg: dict):
         col, row = msg.get("col"), msg.get("row")
@@ -105,6 +118,7 @@ class Connection:
         if not self._click_is_allowed(col, row):
             return
         self.session.engine.click_cell(col, row)
+        self._log("click", f"col={col}, row={row}")
 
     def _handle_jump(self, msg: dict):
         col, row = msg.get("col"), msg.get("row")
@@ -119,6 +133,7 @@ class Connection:
         if piece is None or _piece_owner(piece) != self.color:
             return
         self.session.engine.jump_cell(col, row)
+        self._log("jump", f"col={col}, row={row}")
 
     def _click_is_allowed(self, col: int, row: int) -> bool:
         from model.position import Position

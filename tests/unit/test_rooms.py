@@ -2,11 +2,12 @@
 
 import asyncio
 import json
+import types
 
 import pytest
 
 import server.core.game_logger as game_logger
-from server.core.protocol import Role
+from server.core.protocol import Role, COLOR_WHITE
 from server.game.session import GameSession
 from server.game.rooms import create_room
 from server.game.connection import Connection
@@ -133,3 +134,45 @@ class TestViewerBlockedFromMoves:
             assert session.engine is None  # never touched
 
         asyncio.run(run())
+
+
+class TestConnectionLogging:
+    def test_click_logs_room_user_role_and_comment(self, monkeypatch):
+        logged = []
+        monkeypatch.setattr(
+            "server.game.connection.log_action",
+            lambda room_id, user_id, username, role, action, comment="": logged.append(
+                (room_id, user_id, username, role, action, comment)
+            ),
+        )
+        session = MockSession()
+        session.room_id = "room-x"
+        session.engine = types.SimpleNamespace(click_cell=lambda col, row: None)
+        connection = Connection(FakeWebSocket(), session, user_id=7)
+        connection.color = COLOR_WHITE
+        connection._role = Role.WHITE
+        connection.username = "alice"
+        monkeypatch.setattr(connection, "_click_is_allowed", lambda col, row: True)
+
+        connection._handle_click({"col": 3, "row": 4})
+
+        assert logged == [("room-x", 7, "alice", Role.WHITE, "click", "col=3, row=4")]
+
+    def test_disallowed_click_is_not_logged(self, monkeypatch):
+        logged = []
+        monkeypatch.setattr(
+            "server.game.connection.log_action",
+            lambda *a, **k: logged.append((a, k)),
+        )
+        session = MockSession()
+        session.room_id = "room-y"
+        session.engine = types.SimpleNamespace(click_cell=lambda col, row: None)
+        connection = Connection(FakeWebSocket(), session, user_id=7)
+        connection.color = COLOR_WHITE
+        connection._role = Role.WHITE
+        connection.username = "alice"
+        monkeypatch.setattr(connection, "_click_is_allowed", lambda col, row: False)
+
+        connection._handle_click({"col": 3, "row": 4})
+
+        assert logged == []
