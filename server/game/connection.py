@@ -11,6 +11,12 @@ from server.core.protocol import (
     MSG_TYPE_RESTART,
     MSG_TYPE_ERROR,
     MSG_TYPE_ROLE,
+    QUERY_ROOM_ID,
+    QUERY_TOKEN,
+    QUERY_CREATE,
+    FLAG_TRUE,
+    FIELD_REASON,
+    Reason,
     Role,
 )
 from server.auth.service import get_user_id_by_token
@@ -26,24 +32,24 @@ def _piece_owner(piece) -> str:
 
 async def game_handler(websocket):
     params = parse_qs(urlparse(websocket.request.path).query)
-    room_id = params.get("room_id", [None])[0]
-    create = params.get("create", [None])[0] == "1"
-    token = params.get("token", [None])[0]
+    room_id = params.get(QUERY_ROOM_ID, [None])[0]
+    create = params.get(QUERY_CREATE, [None])[0] == FLAG_TRUE
+    token = params.get(QUERY_TOKEN, [None])[0]
 
     user_id = get_user_id_by_token(token) if token else None
     if user_id is None:
-        await websocket.send(json.dumps({"type": MSG_TYPE_ERROR, "reason": "unauthorized"}))
+        await websocket.send(json.dumps({"type": MSG_TYPE_ERROR, FIELD_REASON: Reason.UNAUTHORIZED.value}))
         await websocket.close()
         return
 
     if create:
         if room_id and get_session(room_id) is not None:
-            await websocket.send(json.dumps({"type": MSG_TYPE_ERROR, "reason": "room_exists"}))
+            await websocket.send(json.dumps({"type": MSG_TYPE_ERROR, FIELD_REASON: Reason.ROOM_EXISTS.value}))
             await websocket.close()
             return
         room_id = create_room(room_id)
     elif not room_id or get_session(room_id) is None:
-        await websocket.send(json.dumps({"type": MSG_TYPE_ERROR, "reason": "invalid_room"}))
+        await websocket.send(json.dumps({"type": MSG_TYPE_ERROR, FIELD_REASON: Reason.INVALID_ROOM.value}))
         await websocket.close()
         return
 
@@ -74,7 +80,7 @@ class Connection:
     async def run(self):
         role = self.session.assign_color(self, self.user_id)
         if role is None:
-            await self.send({"type": MSG_TYPE_ERROR, "reason": "rejected"})
+            await self.send({"type": MSG_TYPE_ERROR, FIELD_REASON: Reason.REJECTED.value})
             await self.websocket.close()
             return
 

@@ -5,7 +5,7 @@ import json
 import time
 import uuid
 
-from server.core.protocol import COLOR_WHITE, COLOR_BLACK, MSG_TYPE_ERROR, MSG_TYPE_MATCH_FOUND
+from server.core.protocol import COLOR_WHITE, COLOR_BLACK, MSG_TYPE_ERROR, MSG_TYPE_MATCH_FOUND, FIELD_REASON, Reason
 
 _queue: list[dict] = []
 _lock = asyncio.Lock()
@@ -58,7 +58,7 @@ async def _check_loop(entry: dict) -> None:
                     entry["matched"] = True
                     if entry in _queue:
                         _queue.remove(entry)
-                    await entry["ws"].send(json.dumps({"type": MSG_TYPE_ERROR, "reason": "timeout"}))
+                    await entry["ws"].send(json.dumps({"type": MSG_TYPE_ERROR, FIELD_REASON: Reason.TIMEOUT.value}))
                 return
 
             window = _current_window(entry["entered"])

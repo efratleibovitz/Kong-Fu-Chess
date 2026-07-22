@@ -8,16 +8,25 @@ from client.network_session import NetworkSession
 from view.screen import Screen
 from view.menu_screen import MenuScreen
 from server.core.protocol import (
+    HOST,
+    PORT,
+    MATCHMAKING_PORT,
     COLOR_WHITE,
     COLOR_BLACK,
     MSG_TYPE_MATCH_FOUND,
     MSG_TYPE_ERROR,
     MSG_TYPE_ROLE,
     MSG_TYPE_WAITING,
+    QUERY_ROOM_ID,
+    QUERY_TOKEN,
+    QUERY_CREATE,
+    FLAG_TRUE,
+    FIELD_REASON,
+    Reason,
 )
 
-MATCHMAKING_URL = "ws://localhost:8766"
-GAME_URL = "ws://localhost:8765"
+MATCHMAKING_URL = f"ws://{HOST}:{MATCHMAKING_PORT}"
+GAME_URL = f"ws://{HOST}:{PORT}"
 
 
 def _get_token() -> str:
@@ -44,14 +53,14 @@ def _get_token() -> str:
 
 def _connect_matchmaking(token: str) -> dict:
     """Blocking one-shot connect: sits on the socket until match_found."""
-    with websockets.sync.client.connect(f"{MATCHMAKING_URL}?token={token}") as ws:
+    with websockets.sync.client.connect(f"{MATCHMAKING_URL}?{QUERY_TOKEN}={token}") as ws:
         for raw in ws:
             msg = json.loads(raw)
             log_received(msg)
             if msg.get("type") == MSG_TYPE_MATCH_FOUND:
                 return msg
             if msg.get("type") == MSG_TYPE_ERROR:
-                raise RuntimeError(msg.get('reason'))
+                raise RuntimeError(msg.get(FIELD_REASON))
 
 
 def _peek_role(url: str, need_room_id: bool) -> tuple[str, str | None]:
@@ -71,24 +80,25 @@ def _peek_role(url: str, need_room_id: bool) -> tuple[str, str | None]:
             if msg_type == MSG_TYPE_ROLE:
                 role = msg["role"]
             elif msg_type == MSG_TYPE_WAITING:
-                room_id = msg.get("room_id")
+                room_id = msg.get(QUERY_ROOM_ID)
             elif msg_type == MSG_TYPE_ERROR:
-                raise RuntimeError(msg.get('reason'))
+                raise RuntimeError(msg.get(FIELD_REASON))
             if role is not None and (not need_room_id or room_id is not None):
                 break
     return role, room_id
 
 
 def _create_room(token: str, room_code: str | None = None) -> tuple[str, str]:
-    url = f"{GAME_URL}?create=1&token={token}"
+    url = f"{GAME_URL}?{QUERY_CREATE}={FLAG_TRUE}&{QUERY_TOKEN}={token}"
     if room_code:
-        url += f"&room_id={quote(room_code, safe='')}"
+        url += f"&{QUERY_ROOM_ID}={quote(room_code, safe='')}"
     role, room_id = _peek_role(url, need_room_id=True)
     return role, room_id
 
 
 def _join_room(room_id: str, token: str) -> str:
-    role, _ = _peek_role(f"{GAME_URL}?room_id={quote(room_id, safe='')}&token={token}", need_room_id=False)
+    url = f"{GAME_URL}?{QUERY_ROOM_ID}={quote(room_id, safe='')}&{QUERY_TOKEN}={token}"
+    role, _ = _peek_role(url, need_room_id=False)
     return role
 
 
@@ -101,11 +111,11 @@ def _role_label(role: str) -> str:
 
 
 _ERROR_MESSAGES = {
-    "room_exists": "That room name is already taken - try another.",
-    "invalid_room": "That room doesn't exist - check the code and try again.",
-    "unauthorized": "Authorization failed - please log in again.",
-    "timeout": "No match found in time - please try again.",
-    "rejected": "That room is already full.",
+    Reason.ROOM_EXISTS.value: "That room name is already taken - try another.",
+    Reason.INVALID_ROOM.value: "That room doesn't exist - check the code and try again.",
+    Reason.UNAUTHORIZED.value: "Authorization failed - please log in again.",
+    Reason.TIMEOUT.value: "No match found in time - please try again.",
+    Reason.REJECTED.value: "That room is already full.",
 }
 
 
@@ -132,14 +142,14 @@ def main():
                 print("Looking for an opponent...")
                 match = _connect_matchmaking(token)
                 role = match["color"]
-                room_id = match["room_id"]
+                room_id = match[QUERY_ROOM_ID]
         except RuntimeError as e:
             print(_friendly_error(str(e)))
             continue
         break
 
     print(f"Connected as {_role_label(role)}.")
-    client = NetworkClient(f"{GAME_URL}?room_id={quote(room_id, safe='')}&token={token}")
+    client = NetworkClient(f"{GAME_URL}?{QUERY_ROOM_ID}={quote(room_id, safe='')}&{QUERY_TOKEN}={token}")
     client.start()
 
     session = NetworkSession(client, role)

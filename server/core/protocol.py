@@ -27,6 +27,24 @@ MSG_TYPE_MATCH_FOUND = "match_found"
 MSG_TYPE_ERROR = "error"
 MSG_TYPE_ROLE = "role"
 
+QUERY_ROOM_ID = "room_id"
+QUERY_TOKEN = "token"
+QUERY_CREATE = "create"
+FLAG_TRUE = "1"
+FIELD_REASON = "reason"
+
+
+class Reason(Enum):
+    """Values that go in an error message's "reason" field. Named here for
+    the same reason MSG_TYPE_* constants exist - a typo becomes a NameError
+    during development instead of a client that silently never recognizes
+    a server error (or vice versa)."""
+    UNAUTHORIZED = "unauthorized"
+    INVALID_ROOM = "invalid_room"
+    ROOM_EXISTS = "room_exists"
+    REJECTED = "rejected"
+    TIMEOUT = "timeout"
+
 
 class Role(Enum):
     """A connection's role in a GameSession: an assigned color, or a
