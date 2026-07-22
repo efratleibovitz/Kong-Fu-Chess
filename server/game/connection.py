@@ -67,6 +67,11 @@ class Connection:
         self.color: str | None = None
         self.is_viewer = False
         self._role: Role | None = None
+        self._handlers = {
+            MSG_TYPE_CLICK: self._handle_click,
+            MSG_TYPE_JUMP: self._handle_jump,
+            MSG_TYPE_RESTART: self._handle_restart,
+        }
 
     async def send(self, message: dict):
         await self.websocket.send(json.dumps(message))
@@ -111,15 +116,13 @@ class Connection:
         except (json.JSONDecodeError, TypeError):
             return
 
-        msg_type = msg.get("type")
+        handler = self._handlers.get(msg.get("type"))
+        if handler:
+            handler(msg)
 
-        if msg_type == MSG_TYPE_CLICK:
-            self._handle_click(msg)
-        elif msg_type == MSG_TYPE_JUMP:
-            self._handle_jump(msg)
-        elif msg_type == MSG_TYPE_RESTART:
-            self.session.engine.restart()
-            self._log("restart")
+    def _handle_restart(self, msg: dict):
+        self.session.engine.restart()
+        self._log("restart")
 
     def _handle_click(self, msg: dict):
         col, row = msg.get("col"), msg.get("row")

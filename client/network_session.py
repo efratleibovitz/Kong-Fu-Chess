@@ -58,6 +58,10 @@ class NetworkSession:
         self.cooldowns: dict = {}
         self.rest_type: dict = {}
         self._rs: RenderState | None = None
+        self._handlers = {
+            MSG_TYPE_STATE: self._handle_state,
+            MSG_TYPE_GAME_OVER: self._handle_game_over,
+        }
 
     # --- state role ---
 
@@ -96,14 +100,18 @@ class NetworkSession:
         send_fn(col, row)
 
     def _handle_message(self, msg: dict):
-        t = msg.get("type")
-        if t == MSG_TYPE_STATE:
-            rs = render_state_from_dict(msg["data"])
-            if self._color == COLOR_BLACK:
-                rs = _flip_render_state(rs)
-            self._rs = rs
-            self.clock = rs.clock_ms
-        elif t == MSG_TYPE_GAME_OVER:
-            if self._rs is not None:
-                self._rs.game_over = True
-                self._rs.loser = msg.get("loser")
+        handler = self._handlers.get(msg.get("type"))
+        if handler:
+            handler(msg)
+
+    def _handle_state(self, msg: dict):
+        rs = render_state_from_dict(msg["data"])
+        if self._color == COLOR_BLACK:
+            rs = _flip_render_state(rs)
+        self._rs = rs
+        self.clock = rs.clock_ms
+
+    def _handle_game_over(self, msg: dict):
+        if self._rs is not None:
+            self._rs.game_over = True
+            self._rs.loser = msg.get("loser")
