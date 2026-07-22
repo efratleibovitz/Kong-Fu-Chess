@@ -88,6 +88,11 @@ class Img:
                     cv2.FONT_HERSHEY_SIMPLEX, font_size,
                     color, thickness, cv2.LINE_AA)
 
+    def draw_rect(self, x1, y1, x2, y2, color, thickness=2):
+        if self.img is None:
+            raise ValueError("Image not loaded.")
+        cv2.rectangle(self.img, (x1, y1), (x2, y2), color, thickness)
+
     def show(self):
         if self.img is None:
             raise ValueError("Image not loaded.")

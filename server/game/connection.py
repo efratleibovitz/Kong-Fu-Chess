@@ -27,6 +27,7 @@ def _piece_owner(piece) -> str:
 async def game_handler(websocket):
     params = parse_qs(urlparse(websocket.request.path).query)
     room_id = params.get("room_id", [None])[0]
+    create = params.get("create", [None])[0] == "1"
     token = params.get("token", [None])[0]
 
     user_id = get_user_id_by_token(token) if token else None
@@ -35,15 +36,18 @@ async def game_handler(websocket):
         await websocket.close()
         return
 
-    if not room_id:
-        room_id = create_room()
-
-    session = get_session(room_id)
-    if session is None:
+    if create:
+        if room_id and get_session(room_id) is not None:
+            await websocket.send(json.dumps({"type": MSG_TYPE_ERROR, "reason": "room_exists"}))
+            await websocket.close()
+            return
+        room_id = create_room(room_id)
+    elif not room_id or get_session(room_id) is None:
         await websocket.send(json.dumps({"type": MSG_TYPE_ERROR, "reason": "invalid_room"}))
         await websocket.close()
         return
 
+    session = get_session(room_id)
     connection = Connection(websocket, session, user_id)
     await connection.run()
 

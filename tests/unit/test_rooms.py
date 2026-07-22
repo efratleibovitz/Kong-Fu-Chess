@@ -10,17 +10,22 @@ import server.core.game_logger as game_logger
 from server.core.protocol import Role, COLOR_WHITE
 from server.game.session import GameSession
 from server.game.rooms import create_room
-from server.game.connection import Connection
+from server.game.connection import Connection, game_handler
 
 
 class FakeWebSocket:
     """Doubles as both a raw websocket and a Connection: assign_color
     stores whatever object it's given as the "connection", and broadcast()
     calls .send_raw() on it - real Connection objects provide both from
-    a wrapped websocket, so this fake just implements both directly."""
+    a wrapped websocket, so this fake just implements both directly.
+    game_handler tests also need `.request.path` (for urlparse) and async
+    iteration (Connection.run()'s `async for raw in self.websocket` - an
+    empty/closed stream, since these tests only care about game_handler's
+    routing, not live gameplay)."""
 
-    def __init__(self):
+    def __init__(self, path=""):
         self.sent = []
+        self.request = types.SimpleNamespace(path=path)
 
     async def send(self, data):
         self.sent.append(json.loads(data))
@@ -30,6 +35,12 @@ class FakeWebSocket:
 
     async def close(self):
         pass
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        raise StopAsyncIteration
 
 
 @pytest.fixture(autouse=True)
@@ -47,6 +58,14 @@ class TestCreateRoom:
         assert session is not None
         assert session.room_id == room_id
         assert session.allow_viewers is True
+
+    def test_create_room_with_custom_name_uses_it(self):
+        room_id = create_room("efrat_room_unit_test")
+
+        from server.game.session import get_session
+
+        assert room_id == "efrat_room_unit_test"
+        assert get_session("efrat_room_unit_test") is not None
 
 
 class TestRoomAssignment:
@@ -176,3 +195,64 @@ class TestConnectionLogging:
         connection._handle_click({"col": 3, "row": 4})
 
         assert logged == []
+
+
+class TestGameHandlerRoomCreation:
+    @pytest.fixture(autouse=True)
+    def stub_auth(self, monkeypatch):
+        monkeypatch.setattr("server.game.connection.get_user_id_by_token", lambda token: 1)
+        monkeypatch.setattr("server.game.connection.get_user_by_id", lambda uid: {"username": "alice"})
+
+    def test_create_with_no_name_assigns_fresh_room(self):
+        async def run():
+            ws = FakeWebSocket(path="/?create=1&token=t")
+            await game_handler(ws)
+
+            waiting = next(m for m in ws.sent if m["type"] == "waiting")
+            assert waiting["room_id"]
+
+            from server.game.session import get_session
+            assert get_session(waiting["room_id"]) is not None
+
+        asyncio.run(run())
+
+    def test_create_with_free_name_uses_it(self):
+        async def run():
+            ws = FakeWebSocket(path="/?create=1&room_id=my_custom_room_abc&token=t")
+            await game_handler(ws)
+
+            waiting = next(m for m in ws.sent if m["type"] == "waiting")
+            assert waiting["room_id"] == "my_custom_room_abc"
+
+        asyncio.run(run())
+
+    def test_create_with_taken_name_errors_room_exists(self):
+        async def run():
+            create_room("already_taken_room")
+            ws = FakeWebSocket(path="/?create=1&room_id=already_taken_room&token=t")
+
+            await game_handler(ws)
+
+            assert ws.sent == [{"type": "error", "reason": "room_exists"}]
+
+        asyncio.run(run())
+
+    def test_join_unknown_room_errors_invalid_room(self):
+        async def run():
+            ws = FakeWebSocket(path="/?room_id=does_not_exist_room&token=t")
+
+            await game_handler(ws)
+
+            assert ws.sent == [{"type": "error", "reason": "invalid_room"}]
+
+        asyncio.run(run())
+
+    def test_join_without_room_id_errors_invalid_room(self):
+        async def run():
+            ws = FakeWebSocket(path="/?token=t")
+
+            await game_handler(ws)
+
+            assert ws.sent == [{"type": "error", "reason": "invalid_room"}]
+
+        asyncio.run(run())
