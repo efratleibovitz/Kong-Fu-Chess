@@ -256,3 +256,80 @@ class TestGameHandlerRoomCreation:
             assert ws.sent == [{"type": "error", "reason": "invalid_room"}]
 
         asyncio.run(run())
+
+
+class TestRoomIsolation:
+    """Todo-list item: 'Take care of isolation between the rooms' - two
+    rooms must never share state, and acting in one must never be visible
+    in another."""
+
+    def test_rooms_have_independent_board_and_piece_objects(self):
+        from server.game.session import get_session
+        from model.position import Position
+
+        room_a = create_room()
+        room_b = create_room()
+        session_a = get_session(room_a)
+        session_b = get_session(room_b)
+
+        assert session_a is not session_b
+        assert session_a.state is not session_b.state
+        assert session_a.state.board is not session_b.state.board
+        assert session_a.state.board.get_piece(Position(0, 6)) is not session_b.state.board.get_piece(Position(0, 6))
+
+    def test_selecting_a_piece_in_one_room_does_not_select_in_another(self):
+        async def run():
+            from server.game.session import get_session
+
+            room_a = create_room()
+            room_b = create_room()
+            session_a = get_session(room_a)
+            session_b = get_session(room_b)
+
+            session_a.engine.click_cell(0, 6)  # select white pawn in room A only
+
+            assert session_a.state.selected_position is not None
+            assert session_b.state.selected_position is None
+
+        asyncio.run(run())
+
+    def test_moving_a_piece_in_one_room_leaves_the_other_rooms_board_untouched(self):
+        async def run():
+            from server.game.session import get_session
+            from model.position import Position
+
+            room_a = create_room()
+            room_b = create_room()
+            session_a = get_session(room_a)
+            session_b = get_session(room_b)
+
+            session_a.engine.click_cell(0, 6)
+            session_a.engine.click_cell(0, 5)
+            session_a.engine.wait(1000)
+
+            assert session_a.state.board.get_token(Position(0, 5)) == 'wP'
+            assert session_b.state.board.get_token(Position(0, 6)) == 'wP'
+            assert session_b.state.board.get_token(Position(0, 5)) == '.'
+
+        asyncio.run(run())
+
+    def test_broadcast_in_one_room_never_reaches_another_rooms_connections(self):
+        async def run():
+            from server.game.session import get_session
+
+            room_a = create_room()
+            room_b = create_room()
+            session_a = get_session(room_a)
+            session_b = get_session(room_b)
+
+            conn_a = FakeWebSocket()
+            conn_b = FakeWebSocket()
+            session_a.assign_color(conn_a, user_id=1)
+            session_b.assign_color(conn_b, user_id=2)
+
+            await session_a.broadcast({"type": "state", "data": {}})
+
+            assert conn_a.sent == [{"type": "state", "data": {}}]
+            assert conn_b.sent == []
+
+        asyncio.run(run())
