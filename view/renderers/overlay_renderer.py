@@ -29,10 +29,12 @@ class OverlayRenderer:
             canvas.put_text(f"Score: {winner_info.score}", cx - 70, cy + 60, 1.0, WHITE + (255,), 2)
         canvas.put_text("Press Q to quit  |  R to restart", cx - 210, cy + 110, 0.8, WHITE + (255,), 1)
 
-    def draw_main_menu(self, canvas: Img, play_rect, room_rect, hover=None):
+    def draw_main_menu(self, canvas: Img, play_rect, room_rect, hover=None, error: str | None = None):
         self._draw_dimmed_bg(canvas)
         cx = self._w // 2
         canvas.put_text("KONG-FU CHESS", cx - 200, 100, 1.8, GOLD + (255,), 3)
+        if error:
+            canvas.put_text(error, cx - min(len(error) * 5, cx - 20), 220, 0.7, RED + (255,), 2)
         self._draw_button(canvas, play_rect, "PLAY", hover == "play")
         self._draw_button(canvas, room_rect, "ROOM", hover == "room")
 

@@ -5,7 +5,7 @@ import numpy as np
 
 from view.img import Img
 from view.constants import (
-    CELL, GOLD, BOARD_IMG, PieceState,
+    CELL, GOLD, RED, BOARD_IMG, PieceState,
     HIGHLIGHT_SELECTED, HIGHLIGHT_PENDING,
     COOLDOWN_LONG, COOLDOWN_SHORT, COOLDOWN_BG,
 )
@@ -41,6 +41,15 @@ class BoardRenderer:
             self._draw_highlight(canvas, rs.selected_col, rs.selected_row, HIGHLIGHT_SELECTED)
         for arrow in rs.pending_destinations:
             self._draw_highlight(canvas, arrow.to_col, arrow.to_row, HIGHLIGHT_PENDING)
+
+        if rs.message:
+            self._draw_message(canvas, rs.message)
+
+    def _draw_message(self, canvas: Img, message: str):
+        font, scale, thickness = cv2.FONT_HERSHEY_SIMPLEX, 1.0, 2
+        (text_w, _), _ = cv2.getTextSize(message, font, scale, thickness)
+        x = (canvas.img.shape[1] - text_w) // 2
+        canvas.put_text(message, x, 50, scale, RED + (255,), thickness)
 
     def _advance_frame(self, key: str, total: int, dt: float, piece_state: PieceState) -> int:
         fps = {

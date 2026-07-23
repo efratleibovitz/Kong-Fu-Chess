@@ -25,6 +25,7 @@ from server.core.protocol import COLOR_WHITE, COLOR_BLACK, MSG_TYPE_STATE, MSG_T
 
 NUM_COLS = 8
 NUM_ROWS = 8
+FEEDBACK_DURATION_MS = 1500
 
 
 def _flip_render_state(rs: RenderState) -> RenderState:
@@ -58,6 +59,8 @@ class NetworkSession:
         self.cooldowns: dict = {}
         self.rest_type: dict = {}
         self._rs: RenderState | None = None
+        self._feedback: str | None = None
+        self._feedback_ms_remaining = 0
         self._handlers = {
             MSG_TYPE_STATE: self._handle_state,
             MSG_TYPE_GAME_OVER: self._handle_game_over,
@@ -73,13 +76,19 @@ class NetworkSession:
     def wait(self, ms: int):
         for msg in self._client.poll():
             self._handle_message(msg)
+        if self._feedback_ms_remaining > 0:
+            self._feedback_ms_remaining -= ms
+            if self._feedback_ms_remaining <= 0:
+                self._feedback = None
+        if self._rs is not None:
+            self._rs.message = self._feedback
         self.events.emit('piece_settled')
 
     def click(self, x: int, y: int):
-        self._send(x, y, self._client.send_click)
+        self._send(x, y, self._client.send_click, self._click_is_allowed)
 
     def jump(self, x: int, y: int):
-        self._send(x, y, self._client.send_jump)
+        self._send(x, y, self._client.send_jump, self._jump_is_allowed)
 
     def restart(self):
         if self._color not in (COLOR_WHITE, COLOR_BLACK):
@@ -88,16 +97,46 @@ class NetworkSession:
 
     # --- internals ---
 
-    def _send(self, x: int, y: int, send_fn):
+    def _send(self, x: int, y: int, send_fn, is_allowed):
         if self._color not in (COLOR_WHITE, COLOR_BLACK):
             return
         if not BoardMapper.is_within_bounds(x, y, NUM_COLS, NUM_ROWS):
             return
         pos = BoardMapper.pixel_to_cell(x, y)
         col, row = pos.col, pos.row
+        allowed, message = is_allowed(col, row)
+        if not allowed:
+            if message:
+                self._show_feedback(message)
+            return
         if self._color == COLOR_BLACK:
             col, row = 7 - col, 7 - row
         send_fn(col, row)
+
+    def _show_feedback(self, message: str):
+        self._feedback = message
+        self._feedback_ms_remaining = FEEDBACK_DURATION_MS
+
+    def _piece_color_at(self, col: int, row: int) -> str | None:
+        if self._rs is None:
+            return None
+        return next((p.token[0] for p in self._rs.pieces if p.col == col and p.row == row), None)
+
+    def _click_is_allowed(self, col: int, row: int) -> tuple[bool, str | None]:
+        dest_color = self._piece_color_at(col, row)
+        if dest_color == self._color:
+            return True, None
+        if self._rs is not None and self._rs.selected_col is not None:
+            selected_color = self._piece_color_at(self._rs.selected_col, self._rs.selected_row)
+            if selected_color == self._color:
+                return True, None
+        return (False, "Not your piece") if dest_color is not None else (False, None)
+
+    def _jump_is_allowed(self, col: int, row: int) -> tuple[bool, str | None]:
+        dest_color = self._piece_color_at(col, row)
+        if dest_color == self._color:
+            return True, None
+        return (False, "Not your piece") if dest_color is not None else (False, None)
 
     def _handle_message(self, msg: dict):
         handler = self._handlers.get(msg.get("type"))

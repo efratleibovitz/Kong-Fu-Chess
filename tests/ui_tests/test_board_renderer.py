@@ -131,3 +131,33 @@ def test_render_draws_highlight_for_pending_destination():
         renderer._last_tick = 1.0
         renderer.render(canvas, rs)
         assert mock_blend.call_count >= 1
+
+
+# ── click feedback message ────────────────────────────────────────────────────
+
+def test_render_draws_message_when_set():
+    renderer, _ = _make_renderer()
+    rs = _make_rs()
+    rs.message = "Not your piece"
+    canvas = _make_canvas()
+    with patch('time.time', return_value=1.0):
+        renderer._last_tick = 1.0
+        renderer.render(canvas, rs)
+    texts = [c[0][0] for c in canvas.put_text.call_args_list]
+    assert "Not your piece" in texts
+
+def test_render_skips_message_when_none():
+    renderer, _ = _make_renderer()
+    rs = _make_rs()
+    canvas = _make_canvas()
+    with patch('time.time', return_value=1.0):
+        renderer._last_tick = 1.0
+        renderer.render(canvas, rs)
+    canvas.put_text.assert_not_called()
+
+def test_draw_message_centers_text_horizontally():
+    renderer, _ = _make_renderer()
+    canvas = _make_canvas()
+    renderer._draw_message(canvas, "Not your piece")
+    x = canvas.put_text.call_args[0][1]
+    assert 0 < x < canvas.img.shape[1]

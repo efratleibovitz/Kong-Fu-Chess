@@ -142,6 +142,24 @@ def test_draw_main_menu_hover_does_not_crash():
         renderer.draw_main_menu(canvas, (0, 0, 10, 10), (0, 20, 10, 30), hover="play")
 
 
+def test_draw_main_menu_shows_error_when_given():
+    renderer = _make_renderer()
+    canvas = _make_canvas()
+    with patch('cv2.addWeighted'):
+        renderer.draw_main_menu(canvas, (0, 0, 10, 10), (0, 20, 10, 30), error="That room doesn't exist.")
+    texts = [c[0][0] for c in canvas.put_text.call_args_list]
+    assert any("doesn't exist" in t for t in texts)
+
+
+def test_draw_main_menu_no_error_text_when_none():
+    renderer = _make_renderer()
+    canvas = _make_canvas()
+    with patch('cv2.addWeighted'):
+        renderer.draw_main_menu(canvas, (0, 0, 10, 10), (0, 20, 10, 30))
+    texts = [c[0][0] for c in canvas.put_text.call_args_list]
+    assert len(texts) == 3  # title + 2 button labels, no error line
+
+
 # ── draw_room_menu ────────────────────────────────────────────────────────────
 
 def test_draw_room_menu_shows_room_code():

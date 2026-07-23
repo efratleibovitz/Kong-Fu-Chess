@@ -17,7 +17,7 @@ MAX_ROOM_CODE_LEN = 40
 
 
 class MenuScreen:
-    def __init__(self):
+    def __init__(self, error: str | None = None):
         self._board_w = CELL * 8
         self._board_h = CELL * 8
         self._total_w = self._board_w + HUD_W
@@ -27,6 +27,7 @@ class MenuScreen:
         self._hover = None
         self._frame = 0
         self._result = None
+        self._error = error
 
     def run(self) -> tuple:
         """Returns ("quick_match", None) | ("create", None) |
@@ -56,7 +57,7 @@ class MenuScreen:
 
     def _render(self, board_canvas: Img):
         if self._screen == "main":
-            self._overlay.draw_main_menu(board_canvas, self._play_rect(), self._room_rect(), self._hover)
+            self._overlay.draw_main_menu(board_canvas, self._play_rect(), self._room_rect(), self._hover, error=self._error)
         else:
             cursor_visible = (self._frame // (FPS // 2 or 1)) % 2 == 0
             self._overlay.draw_room_menu(

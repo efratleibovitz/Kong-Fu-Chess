@@ -5,6 +5,7 @@ import websockets.sync.client
 from server.auth.service import login_with_session, register
 from client.network_client import NetworkClient, log_sent, log_received
 from client.network_session import NetworkSession
+from client.errors import ServerError
 from view.screen import Screen
 from view.menu_screen import MenuScreen
 from server.core.protocol import (
@@ -60,7 +61,7 @@ def _connect_matchmaking(token: str) -> dict:
             if msg.get("type") == MSG_TYPE_MATCH_FOUND:
                 return msg
             if msg.get("type") == MSG_TYPE_ERROR:
-                raise RuntimeError(msg.get(FIELD_REASON))
+                raise ServerError(Reason(msg.get(FIELD_REASON)))
 
 
 def _peek_role(url: str, need_room_id: bool) -> tuple[str, str | None]:
@@ -82,7 +83,7 @@ def _peek_role(url: str, need_room_id: bool) -> tuple[str, str | None]:
             elif msg_type == MSG_TYPE_WAITING:
                 room_id = msg.get(QUERY_ROOM_ID)
             elif msg_type == MSG_TYPE_ERROR:
-                raise RuntimeError(msg.get(FIELD_REASON))
+                raise ServerError(Reason(msg.get(FIELD_REASON)))
             if role is not None and (not need_room_id or room_id is not None):
                 break
     return role, room_id
@@ -110,24 +111,13 @@ def _role_label(role: str) -> str:
     return "Viewer"
 
 
-_ERROR_MESSAGES = {
-    Reason.ROOM_EXISTS.value: "That room name is already taken - try another.",
-    Reason.INVALID_ROOM.value: "That room doesn't exist - check the code and try again.",
-    Reason.UNAUTHORIZED.value: "Authorization failed - please log in again.",
-    Reason.TIMEOUT.value: "No match found in time - please try again.",
-    Reason.REJECTED.value: "That room is already full.",
-}
-
-
-def _friendly_error(reason) -> str:
-    return _ERROR_MESSAGES.get(reason, f"Error: {reason}")
-
-
 def main():
     token = _get_token()
 
+    error = None
     while True:
-        action, room_code = MenuScreen().run()
+        action, room_code = MenuScreen(error=error).run()
+        error = None
         if action == "quit":
             return
 
@@ -143,8 +133,8 @@ def main():
                 match = _connect_matchmaking(token)
                 role = match["color"]
                 room_id = match[QUERY_ROOM_ID]
-        except RuntimeError as e:
-            print(_friendly_error(str(e)))
+        except ServerError as e:
+            error = e.friendly_message
             continue
         break
 

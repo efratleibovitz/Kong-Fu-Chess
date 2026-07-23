@@ -45,3 +45,8 @@ class RenderState:
     # overlay
     game_over: bool
     loser: Optional[str]        # 'w' or 'b'
+
+    # transient client-side UI feedback (e.g. "Not your piece") - never
+    # sent by the server, only ever set locally by NetworkSession after
+    # decoding its own RenderState
+    message: Optional[str] = None

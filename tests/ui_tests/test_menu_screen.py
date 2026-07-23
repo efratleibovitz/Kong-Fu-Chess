@@ -14,6 +14,18 @@ def _center(rect):
     return (x1 + x2) // 2, (y1 + y2) // 2
 
 
+# ── error display ────────────────────────────────────────────────────────────
+
+def test_constructor_stores_error():
+    menu = MenuScreen(error="That room doesn't exist.")
+    assert menu._error == "That room doesn't exist."
+
+
+def test_constructor_defaults_to_no_error():
+    menu = MenuScreen()
+    assert menu._error is None
+
+
 # ── main screen hit-testing ─────────────────────────────────────────────────
 
 def test_click_play_sets_quick_match_result():
