@@ -32,7 +32,10 @@ class HUDRenderer:
     def _draw_player_section(self, panel: Img, player, color: str, y_start: int):
         label_color = GOLD if color == 'w' else (*SILVER, 255)
         panel.put_text(player.name, 10, y_start + 20, 0.6, label_color, 2)
-        panel.put_text(f"score: {player.score}", 10, y_start + 42, 0.55, TEXT_COLOR + (255,), 1)
+        score_line = f"score: {player.score}"
+        if player.elo is not None:
+            score_line += f"   elo: {player.elo}"
+        panel.put_text(score_line, 10, y_start + 42, 0.55, TEXT_COLOR + (255,), 1)
 
         CAPTURED_ROWS = 2
         captured_area_h = CAPTURED_ROWS * (CAPTURED_SIZE + 2)

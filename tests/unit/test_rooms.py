@@ -3,6 +3,7 @@
 import asyncio
 import json
 import types
+import uuid
 
 import pytest
 
@@ -394,3 +395,39 @@ class TestPerColorSelection:
             assert len(session.state.pending_jumps) == 1
 
         asyncio.run(run())
+
+
+class TestPlayerIdentity:
+    """Point 11: real DB username/elo should reach RenderState instead of
+    the hardcoded 'White'/'Black' labels - GameSession._apply_player_identity
+    pulls a PlayerRecord (server.core.database) and pokes it onto GameState,
+    the same way player_names was already being set externally."""
+
+    def test_matchmaking_session_pulls_real_username_and_elo(self):
+        from server.core.database import init_db, create_user
+        init_db()
+        username = f"test_identity_{uuid.uuid4().hex[:8]}"
+        user_id = create_user(username, "hash")
+
+        session = GameSession(white_user_id=user_id, black_user_id=999999)
+
+        assert session.state.player_names['w'] == username
+        assert session.state.player_elo['w'] == 1200
+
+    def test_room_session_pulls_identity_when_slot_is_claimed(self):
+        from server.core.database import init_db, create_user
+        init_db()
+        username = f"test_identity_room_{uuid.uuid4().hex[:8]}"
+        user_id = create_user(username, "hash")
+
+        session = GameSession(allow_viewers=True)
+        session.assign_color(FakeWebSocket(), user_id=user_id)
+
+        assert session.state.player_names['w'] == username
+        assert session.state.player_elo['w'] == 1200
+
+    def test_unknown_user_id_leaves_default_labels(self):
+        session = GameSession(white_user_id=-1, black_user_id=-2)
+
+        assert session.state.player_names['w'] == 'White'
+        assert session.state.player_elo['w'] is None

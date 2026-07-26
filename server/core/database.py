@@ -1,8 +1,20 @@
 import sqlite3
 import os
+from dataclasses import dataclass
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "chess.db")
 SESSION_TTL_SECONDS = 24 * 60 * 60  # a token is valid for 24h after login
+
+
+@dataclass(frozen=True)
+class PlayerRecord:
+    """A player's real DB identity (username, rating) - an immutable
+    record (not a general mutable class): once you have one, it can't be
+    changed out from under you. Sent to the client instead of a loose
+    dict, once actually needed there (see GameSession._apply_player_identity)."""
+    user_id: int
+    username: str
+    elo: int
 
 
 def _connect():
@@ -73,6 +85,13 @@ def create_session_record(token: str, user_id: int) -> None:
             "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, datetime('now', ?))",
             (token, user_id, f"+{SESSION_TTL_SECONDS} seconds"),
         )
+
+
+def get_player_record(user_id: int) -> PlayerRecord | None:
+    user = get_user_by_id(user_id)
+    if user is None:
+        return None
+    return PlayerRecord(user_id=user["id"], username=user["username"], elo=user["elo"])
 
 
 def get_user_id_by_token(token: str) -> int | None:

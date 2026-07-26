@@ -21,6 +21,10 @@ class GameState:
     pending_jumps: List[Tuple[str, Position, int]] = field(default_factory=list)
     cooldowns: Dict[Tuple[int,int], int] = field(default_factory=dict)
     player_names: Dict[str, str] = field(default_factory=lambda: {'w': 'White', 'b': 'Black'})
+    # Real DB elo rating per color, poked in by GameSession for online play
+    # (mirrors how player_names is set) - stays {'w': None, 'b': None} for
+    # solo/hotseat play, which has no DB-backed identity at all.
+    player_elo: Dict[str, Optional[int]] = field(default_factory=lambda: {'w': None, 'b': None})
     captured: Dict[str, List[str]] = field(default_factory=lambda: {'w': [], 'b': []})
     scores: Dict[str, int] = field(default_factory=lambda: {'w': 0, 'b': 0})
     rest_type: Dict[Tuple[int,int], str] = field(default_factory=dict)
@@ -71,7 +75,8 @@ class GameState:
                 name=self.player_names[color],
                 score=self.scores[color],
                 captured=[p.token for p in self.captured[color]],
-                move_history=[(m.time_ms, m.notation) for m in self.move_history if m.color == color]
+                move_history=[(m.time_ms, m.notation) for m in self.move_history if m.color == color],
+                elo=self.player_elo.get(color),
             )
 
         white_sel = self.selected_by_color.get('w')

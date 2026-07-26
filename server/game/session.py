@@ -20,7 +20,7 @@ from server.core.protocol import (
     Message,
     Role,
 )
-from server.core.database import get_user_by_id
+from server.core.database import get_user_by_id, get_player_record
 from server.core.game_logger import get_room_logger, log_action
 
 TICK_MS = 16
@@ -79,9 +79,29 @@ class GameSession:
         self.black_user_id = black_user_id
         self.black_elo = black_elo
 
+        # Matchmaking already knows both identities at construction time;
+        # rooms (allow_viewers=True) fill these in dynamically as each
+        # player joins - see assign_color below.
+        if white_user_id is not None:
+            self._apply_player_identity(COLOR_WHITE, white_user_id)
+        if black_user_id is not None:
+            self._apply_player_identity(COLOR_BLACK, black_user_id)
+
         state.events.subscribe('piece_settled', self._on_state_event)
         state.events.subscribe('selection_changed', self._on_state_event)
         state.events.subscribe('game_over', self._on_game_over)
+
+    def _apply_player_identity(self, color: str, user_id: int) -> None:
+        """Pulls the real username/elo from the DB (as a typed PlayerRecord,
+        not a loose dict) and surfaces them onto GameState so they reach
+        the client via RenderState - replacing the hardcoded 'White'/
+        'Black' labels that were never actually updated with who's really
+        playing."""
+        record = get_player_record(user_id)
+        if record is None:
+            return
+        self.state.player_names[color] = record.username
+        self.state.player_elo[color] = record.elo
 
     def assign_color(self, connection, user_id: int) -> Role | None:
         """Identity-based, not slot-order: a reconnecting player gets back
@@ -96,9 +116,11 @@ class GameSession:
             role = Role.BLACK
         elif self.allow_viewers and self.white_user_id is None:
             self.white_user_id = user_id
+            self._apply_player_identity(COLOR_WHITE, user_id)
             role = Role.WHITE
         elif self.allow_viewers and self.black_user_id is None:
             self.black_user_id = user_id
+            self._apply_player_identity(COLOR_BLACK, user_id)
             role = Role.BLACK
         elif self.allow_viewers:
             self.viewers.append(connection)

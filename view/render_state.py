@@ -25,6 +25,7 @@ class PlayerRenderInfo:
     score: int
     captured: list[str]
     move_history: list          # list of (time_ms: int, notation: str)
+    elo: Optional[int] = None   # real DB rating for online play; None in solo/hotseat
 
 
 @dataclass

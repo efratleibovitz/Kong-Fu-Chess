@@ -35,6 +35,7 @@ def render_state_from_dict(data: dict) -> RenderState:
             score=p["score"],
             captured=p["captured"],
             move_history=[tuple(entry) for entry in p["move_history"]],
+            elo=p.get("elo"),
         )
 
     return RenderState(
