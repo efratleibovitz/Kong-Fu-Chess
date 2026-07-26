@@ -3,8 +3,8 @@ import numpy as np
 
 from view.img import Img
 from view.constants import CELL, HUD_W, FPS,WINDOW,SHORT_REST_MS,LONG_REST_MS,BG_COLOR,CHANNELS_RGB
-from engine.game_engine import GameEngine
-from model.game_state import GameState
+from core.engine.game_engine import GameEngine
+from core.model.game_state import GameState
 from view.loaders.sprite_loader import SpriteLoader
 from view.renderers.board_renderer import BoardRenderer
 from view.renderers.hud_renderer import HUDRenderer

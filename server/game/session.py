@@ -9,9 +9,9 @@ import dataclasses
 import json
 from enum import Enum
 
-from model.board import Board
-from model.game_state import GameState
-from engine.game_engine import GameEngine
+from core.model.board import Board
+from core.model.game_state import GameState
+from core.engine.game_engine import GameEngine
 from server.core.protocol import (
     COLOR_WHITE,
     COLOR_BLACK,

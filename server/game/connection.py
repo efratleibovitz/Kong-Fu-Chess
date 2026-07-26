@@ -137,7 +137,7 @@ class Connection:
         col, row = msg.get("col"), msg.get("row")
         if col is None or row is None:
             return
-        from model.position import Position
+        from core.model.position import Position
         board = self.session.state.board
         pos = Position(col, row)
         if not board.is_within_bounds(pos):
@@ -149,7 +149,7 @@ class Connection:
         self._log("jump", f"col={col}, row={row}")
 
     def _click_is_allowed(self, col: int, row: int) -> bool:
-        from model.position import Position
+        from core.model.position import Position
         board = self.session.state.board
         pos = Position(col, row)
         if not board.is_within_bounds(pos):

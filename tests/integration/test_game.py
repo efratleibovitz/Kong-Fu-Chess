@@ -2,10 +2,10 @@ import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from model.board import Board
-from model.position import Position
-from model.game_state import GameState
-from engine.game_engine import GameEngine
+from core.model.board import Board
+from core.model.position import Position
+from core.model.game_state import GameState
+from core.engine.game_engine import GameEngine
 
 
 def _make(rows):

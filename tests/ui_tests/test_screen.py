@@ -7,10 +7,10 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 
 import cv2
 from unittest.mock import MagicMock, patch
-from model.board import Board
-from model.game_state import GameState
+from core.model.board import Board
+from core.model.game_state import GameState
 from view.screen import Screen
-from input.board_mapper import BoardMapper
+from core.input.board_mapper import BoardMapper
 
 CELL = BoardMapper.CELL_SIZE
 BOARD_W = 8 * CELL

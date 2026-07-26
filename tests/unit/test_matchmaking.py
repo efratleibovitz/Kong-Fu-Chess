@@ -7,7 +7,7 @@ import types
 import pytest
 import server.core.game_logger as game_logger
 import server.matchmaking.queue as matchmaking
-from model.event_bus import EventBus
+from core.model.event_bus import EventBus
 from server.matchmaking.queue import _check_loop
 
 

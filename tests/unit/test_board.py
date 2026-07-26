@@ -3,9 +3,9 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 import pytest
-from model.board import Board
-from model.position import Position
-from input.board_mapper import BoardMapper
+from core.model.board import Board
+from core.model.position import Position
+from core.input.board_mapper import BoardMapper
 
 # --- BoardMapper: pixel_to_cell ---
 

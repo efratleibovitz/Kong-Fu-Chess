@@ -1,7 +1,7 @@
-from iofiles.board_parser import parse_input, validate_board
-from model.board import Board
-from model.game_state import GameState
-from engine.game_engine import GameEngine
+from core.iofiles.board_parser import parse_input, validate_board
+from core.model.board import Board
+from core.model.game_state import GameState
+from core.engine.game_engine import GameEngine
 from texttests.script_parser import ScriptParser
 import io
 import sys

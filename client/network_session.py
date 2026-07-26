@@ -16,9 +16,9 @@ cooldowns/rest_type are kept permanently empty since nothing reads them.
 
 import types
 
-from model.event_bus import EventBus
+from core.model.event_bus import EventBus
 from view.render_state import RenderState, PieceRenderInfo, MoveArrow
-from input.board_mapper import BoardMapper
+from core.input.board_mapper import BoardMapper
 from client.network_client import NetworkClient
 from client.render_state_codec import render_state_from_dict
 from server.core.protocol import COLOR_WHITE, COLOR_BLACK, MSG_TYPE_STATE, MSG_TYPE_GAME_OVER

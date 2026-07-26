@@ -2,9 +2,9 @@ import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from model.board import Board
-from model.position import Position
-from rules.rule_engine import RuleEngine
+from core.model.board import Board
+from core.model.position import Position
+from core.rules.rule_engine import RuleEngine
 
 def _empty_board(cols, rows):
     return Board([['.' for _ in range(cols)] for _ in range(rows)])

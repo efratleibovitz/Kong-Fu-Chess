@@ -5,10 +5,10 @@ from contextlib import redirect_stdout
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from engine.game_engine import GameEngine
-from iofiles.board_parser import parse_input, validate_board
-from model.board import Board
-from model.game_state import GameState
+from core.engine.game_engine import GameEngine
+from core.iofiles.board_parser import parse_input, validate_board
+from core.model.board import Board
+from core.model.game_state import GameState
 
 
 def _run_case(input_text: str) -> str:

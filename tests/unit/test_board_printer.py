@@ -2,8 +2,8 @@ import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from model.board import Board
-from iofiles.board_printer import print_board
+from core.model.board import Board
+from core.iofiles.board_printer import print_board
 
 
 def test_print_board_output(capsys):

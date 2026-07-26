@@ -4,10 +4,10 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 
 
 def test_main_select_and_move():
-    from model.board import Board
-    from model.position import Position
-    from model.game_state import GameState
-    from engine.game_engine import GameEngine
+    from core.model.board import Board
+    from core.model.position import Position
+    from core.model.game_state import GameState
+    from core.engine.game_engine import GameEngine
 
     game = GameEngine(GameState(Board([['wK', '.', '.'], ['.', '.', '.'], ['.', '.', '.']])))
     game.click(50, 50)

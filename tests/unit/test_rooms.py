@@ -265,7 +265,7 @@ class TestRoomIsolation:
 
     def test_rooms_have_independent_board_and_piece_objects(self):
         from server.game.session import get_session
-        from model.position import Position
+        from core.model.position import Position
 
         room_a = create_room()
         room_b = create_room()
@@ -296,7 +296,7 @@ class TestRoomIsolation:
     def test_moving_a_piece_in_one_room_leaves_the_other_rooms_board_untouched(self):
         async def run():
             from server.game.session import get_session
-            from model.position import Position
+            from core.model.position import Position
 
             room_a = create_room()
             room_b = create_room()
@@ -344,7 +344,7 @@ class TestPerColorSelection:
     def test_selecting_white_does_not_touch_black_slot(self):
         async def run():
             session = GameSession(allow_viewers=True)
-            from model.position import Position
+            from core.model.position import Position
 
             session.engine.click_cell(0, 6, COLOR_WHITE)
 
@@ -360,7 +360,7 @@ class TestPerColorSelection:
         an attempt to move/capture with White's already-selected piece."""
         async def run():
             session = GameSession(allow_viewers=True)
-            from model.position import Position
+            from core.model.position import Position
 
             session.engine.click_cell(0, 6, COLOR_WHITE)  # White selects pawn A
             session.engine.click_cell(0, 1, COLOR_BLACK)  # Black clicks own pawn B

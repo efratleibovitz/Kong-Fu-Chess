@@ -6,10 +6,10 @@ import sys
 
 
 def _run_text_mode():
-    from iofiles.board_parser import parse_input, validate_board
-    from model.board import Board
-    from model.game_state import GameState
-    from engine.game_engine import GameEngine
+    from core.iofiles.board_parser import parse_input, validate_board
+    from core.model.board import Board
+    from core.model.game_state import GameState
+    from core.engine.game_engine import GameEngine
 
     lines = sys.stdin.readlines()
     board_lines, command_lines = parse_input(lines)
