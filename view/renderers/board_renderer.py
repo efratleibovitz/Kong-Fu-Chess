@@ -7,6 +7,7 @@ from view.img import Img
 from view.constants import (
     CELL, GOLD, RED, BOARD_IMG, PieceState,
     HIGHLIGHT_SELECTED, HIGHLIGHT_PENDING,
+    HIGHLIGHT_SELECTED_WHITE, HIGHLIGHT_SELECTED_BLACK,
     COOLDOWN_LONG, COOLDOWN_SHORT, COOLDOWN_BG,
 )
 from view.render_state import RenderState
@@ -39,6 +40,10 @@ class BoardRenderer:
 
         if rs.selected_col is not None:
             self._draw_highlight(canvas, rs.selected_col, rs.selected_row, HIGHLIGHT_SELECTED)
+        if rs.white_selected_col is not None:
+            self._draw_highlight(canvas, rs.white_selected_col, rs.white_selected_row, HIGHLIGHT_SELECTED_WHITE)
+        if rs.black_selected_col is not None:
+            self._draw_highlight(canvas, rs.black_selected_col, rs.black_selected_row, HIGHLIGHT_SELECTED_BLACK)
         for arrow in rs.pending_destinations:
             self._draw_highlight(canvas, arrow.to_col, arrow.to_row, HIGHLIGHT_PENDING)
 

@@ -16,13 +16,14 @@ def _piece(token, col, row):
     return PieceRenderInfo(token=token, col=col, row=row, state=PieceState.IDLE, cooldown_fill=0.0, cooldown_is_long=False)
 
 
-def _make_rs(pieces, selected_col=None, selected_row=None):
+def _make_rs(pieces, white_selected_col=None, white_selected_row=None):
     return RenderState(
         num_cols=8, num_rows=8,
-        pieces=pieces, selected_col=selected_col, selected_row=selected_row,
+        pieces=pieces, selected_col=None, selected_row=None,
         pending_destinations=[],
         clock_ms=0, white=_player(), black=_player(),
         game_over=False, loser=None,
+        white_selected_col=white_selected_col, white_selected_row=white_selected_row,
     )
 
 
@@ -60,7 +61,7 @@ class TestClickIsAllowed:
         session, _ = _make_session()
         session._rs = _make_rs(
             [_piece("wP", 1, 1), _piece("bP", 3, 4)],
-            selected_col=1, selected_row=1,
+            white_selected_col=1, white_selected_row=1,
         )
 
         allowed, message = session._click_is_allowed(3, 4)

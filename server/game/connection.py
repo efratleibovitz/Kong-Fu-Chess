@@ -130,7 +130,7 @@ class Connection:
             return
         if not self._click_is_allowed(col, row):
             return
-        self.session.engine.click_cell(col, row)
+        self.session.engine.click_cell(col, row, self.color)
         self._log("click", f"col={col}, row={row}")
 
     def _handle_jump(self, msg: dict):
@@ -145,7 +145,7 @@ class Connection:
         piece = board.get_piece(pos)
         if piece is None or _piece_owner(piece) != self.color:
             return
-        self.session.engine.jump_cell(col, row)
+        self.session.engine.jump_cell(col, row, self.color)
         self._log("jump", f"col={col}, row={row}")
 
     def _click_is_allowed(self, col: int, row: int) -> bool:
@@ -159,10 +159,6 @@ class Connection:
         if dest_piece is not None and _piece_owner(dest_piece) == self.color:
             return True
 
-        selected = self.session.state.selected_position
-        if selected is not None:
-            selected_piece = board.get_piece(selected)
-            if selected_piece is not None and _piece_owner(selected_piece) == self.color:
-                return True
-
-        return False
+        # click_cell only ever lets a color's slot hold that same color's
+        # piece, so having a selection at all is enough to know it's mine
+        return self.session.state.selected_by_color.get(self.color) is not None

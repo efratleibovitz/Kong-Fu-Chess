@@ -49,4 +49,8 @@ def render_state_from_dict(data: dict) -> RenderState:
         black=_player(data["black"]),
         game_over=data["game_over"],
         loser=data["loser"],
+        white_selected_col=data.get("white_selected_col"),
+        white_selected_row=data.get("white_selected_row"),
+        black_selected_col=data.get("black_selected_col"),
+        black_selected_row=data.get("black_selected_row"),
     )

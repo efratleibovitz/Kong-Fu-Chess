@@ -7,7 +7,7 @@ import types
 import pytest
 
 import server.core.game_logger as game_logger
-from server.core.protocol import Role, COLOR_WHITE
+from server.core.protocol import Role, COLOR_WHITE, COLOR_BLACK
 from server.game.session import GameSession
 from server.game.rooms import create_room
 from server.game.connection import Connection, game_handler
@@ -166,7 +166,7 @@ class TestConnectionLogging:
         )
         session = MockSession()
         session.room_id = "room-x"
-        session.engine = types.SimpleNamespace(click_cell=lambda col, row: None)
+        session.engine = types.SimpleNamespace(click_cell=lambda col, row, color: None)
         connection = Connection(FakeWebSocket(), session, user_id=7)
         connection.color = COLOR_WHITE
         connection._role = Role.WHITE
@@ -185,7 +185,7 @@ class TestConnectionLogging:
         )
         session = MockSession()
         session.room_id = "room-y"
-        session.engine = types.SimpleNamespace(click_cell=lambda col, row: None)
+        session.engine = types.SimpleNamespace(click_cell=lambda col, row, color: None)
         connection = Connection(FakeWebSocket(), session, user_id=7)
         connection.color = COLOR_WHITE
         connection._role = Role.WHITE
@@ -286,10 +286,10 @@ class TestRoomIsolation:
             session_a = get_session(room_a)
             session_b = get_session(room_b)
 
-            session_a.engine.click_cell(0, 6)  # select white pawn in room A only
+            session_a.engine.click_cell(0, 6, COLOR_WHITE)  # select white pawn in room A only
 
-            assert session_a.state.selected_position is not None
-            assert session_b.state.selected_position is None
+            assert session_a.state.selected_by_color['w'] is not None
+            assert session_b.state.selected_by_color['w'] is None
 
         asyncio.run(run())
 
@@ -303,8 +303,8 @@ class TestRoomIsolation:
             session_a = get_session(room_a)
             session_b = get_session(room_b)
 
-            session_a.engine.click_cell(0, 6)
-            session_a.engine.click_cell(0, 5)
+            session_a.engine.click_cell(0, 6, COLOR_WHITE)
+            session_a.engine.click_cell(0, 5, COLOR_WHITE)
             session_a.engine.wait(1000)
 
             assert session_a.state.board.get_token(Position(0, 5)) == 'wP'
@@ -331,5 +331,66 @@ class TestRoomIsolation:
 
             assert conn_a.sent == [{"type": "state", "data": {}}]
             assert conn_b.sent == []
+
+        asyncio.run(run())
+
+
+class TestPerColorSelection:
+    """Reviewer-flagged bug: selected_position was a single shared field,
+    so one player's click could be misread as acting on the other
+    player's selection. click_cell/jump_cell now take an explicit color
+    and operate on GameState.selected_by_color[color] only."""
+
+    def test_selecting_white_does_not_touch_black_slot(self):
+        async def run():
+            session = GameSession(allow_viewers=True)
+            from model.position import Position
+
+            session.engine.click_cell(0, 6, COLOR_WHITE)
+
+            assert session.state.selected_by_color['w'] == Position(0, 6)
+            assert session.state.selected_by_color['b'] is None
+
+        asyncio.run(run())
+
+    def test_black_clicking_own_piece_does_not_touch_or_use_whites_selection(self):
+        """The exact reviewer scenario: White selects piece A, then Black
+        clicks Black's own piece B (a perfectly legal click). Black's
+        click must select B for Black - it must never be interpreted as
+        an attempt to move/capture with White's already-selected piece."""
+        async def run():
+            session = GameSession(allow_viewers=True)
+            from model.position import Position
+
+            session.engine.click_cell(0, 6, COLOR_WHITE)  # White selects pawn A
+            session.engine.click_cell(0, 1, COLOR_BLACK)  # Black clicks own pawn B
+
+            assert session.state.selected_by_color['w'] == Position(0, 6)  # A untouched
+            assert session.state.selected_by_color['b'] == Position(0, 1)  # B selected for Black
+            assert session.state.pending_moves == []  # no move/capture was scheduled
+            assert session.state.board.get_token(Position(0, 6)) == 'wP'  # A never moved
+            assert session.state.board.get_token(Position(0, 1)) == 'bP'  # B never captured
+
+        asyncio.run(run())
+
+    def test_black_cannot_select_a_white_piece(self):
+        async def run():
+            session = GameSession(allow_viewers=True)
+
+            session.engine.click_cell(0, 6, COLOR_BLACK)  # Black clicks a white piece
+
+            assert session.state.selected_by_color['b'] is None
+
+        asyncio.run(run())
+
+    def test_jump_cell_requires_matching_color(self):
+        async def run():
+            session = GameSession(allow_viewers=True)
+
+            session.engine.jump_cell(0, 6, COLOR_BLACK)  # Black tries to jump White's pawn
+            assert session.state.pending_jumps == []
+
+            session.engine.jump_cell(0, 6, COLOR_WHITE)  # White jumps its own pawn
+            assert len(session.state.pending_jumps) == 1
 
         asyncio.run(run())

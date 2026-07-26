@@ -42,6 +42,10 @@ def _flip_render_state(rs: RenderState) -> RenderState:
     ]
     rs.selected_col = 7 - rs.selected_col if rs.selected_col is not None else None
     rs.selected_row = 7 - rs.selected_row if rs.selected_row is not None else None
+    rs.white_selected_col = 7 - rs.white_selected_col if rs.white_selected_col is not None else None
+    rs.white_selected_row = 7 - rs.white_selected_row if rs.white_selected_row is not None else None
+    rs.black_selected_col = 7 - rs.black_selected_col if rs.black_selected_col is not None else None
+    rs.black_selected_row = 7 - rs.black_selected_row if rs.black_selected_row is not None else None
     rs.pending_destinations = [
         MoveArrow(to_col=7 - a.to_col, to_row=7 - a.to_row)
         for a in rs.pending_destinations
@@ -122,14 +126,20 @@ class NetworkSession:
             return None
         return next((p.token[0] for p in self._rs.pieces if p.col == col and p.row == row), None)
 
+    def _my_selected_pos(self) -> tuple[int | None, int | None]:
+        if self._rs is None:
+            return None, None
+        if self._color == COLOR_WHITE:
+            return self._rs.white_selected_col, self._rs.white_selected_row
+        return self._rs.black_selected_col, self._rs.black_selected_row
+
     def _click_is_allowed(self, col: int, row: int) -> tuple[bool, str | None]:
         dest_color = self._piece_color_at(col, row)
         if dest_color == self._color:
             return True, None
-        if self._rs is not None and self._rs.selected_col is not None:
-            selected_color = self._piece_color_at(self._rs.selected_col, self._rs.selected_row)
-            if selected_color == self._color:
-                return True, None
+        my_col, _ = self._my_selected_pos()
+        if my_col is not None:
+            return True, None
         return (False, "Not your piece") if dest_color is not None else (False, None)
 
     def _jump_is_allowed(self, col: int, row: int) -> tuple[bool, str | None]:

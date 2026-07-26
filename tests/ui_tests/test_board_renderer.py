@@ -37,7 +37,9 @@ def _player():
     return PlayerRenderInfo(name='White', score=0, captured=[], move_history=[])
 
 
-def _make_rs(pieces=None, selected_col=None, selected_row=None, destinations=None):
+def _make_rs(pieces=None, selected_col=None, selected_row=None, destinations=None,
+             white_selected_col=None, white_selected_row=None,
+             black_selected_col=None, black_selected_row=None):
     return RenderState(
         num_cols=8, num_rows=8,
         pieces=pieces or [],
@@ -47,6 +49,8 @@ def _make_rs(pieces=None, selected_col=None, selected_row=None, destinations=Non
         clock_ms=0,
         white=_player(), black=_player(),
         game_over=False, loser=None,
+        white_selected_col=white_selected_col, white_selected_row=white_selected_row,
+        black_selected_col=black_selected_col, black_selected_row=black_selected_row,
     )
 
 
@@ -131,6 +135,29 @@ def test_render_draws_highlight_for_pending_destination():
         renderer._last_tick = 1.0
         renderer.render(canvas, rs)
         assert mock_blend.call_count >= 1
+
+def test_render_draws_both_white_and_black_selection_highlights():
+    renderer, _ = _make_renderer()
+    rs = _make_rs(white_selected_col=1, white_selected_row=1, black_selected_col=6, black_selected_row=6)
+    canvas = _make_canvas()
+    with patch('time.time', return_value=1.0), \
+         patch('cv2.rectangle'), \
+         patch('cv2.addWeighted') as mock_blend:
+        renderer._last_tick = 1.0
+        renderer.render(canvas, rs)
+        # 6 addWeighted calls per highlight (see _draw_highlight's range(6)) - two highlights
+        assert mock_blend.call_count == 12
+
+def test_render_skips_per_color_highlights_when_none():
+    renderer, _ = _make_renderer()
+    rs = _make_rs()
+    canvas = _make_canvas()
+    with patch('time.time', return_value=1.0), \
+         patch('cv2.rectangle'), \
+         patch('cv2.addWeighted') as mock_blend:
+        renderer._last_tick = 1.0
+        renderer.render(canvas, rs)
+        assert mock_blend.call_count == 0
 
 
 # ── click feedback message ────────────────────────────────────────────────────

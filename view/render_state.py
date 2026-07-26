@@ -50,3 +50,10 @@ class RenderState:
     # sent by the server, only ever set locally by NetworkSession after
     # decoding its own RenderState
     message: Optional[str] = None
+
+    # per-color selection (online play only - both players' selections are
+    # shown at once); solo/hotseat play keeps using selected_col/row above
+    white_selected_col: Optional[int] = None
+    white_selected_row: Optional[int] = None
+    black_selected_col: Optional[int] = None
+    black_selected_row: Optional[int] = None

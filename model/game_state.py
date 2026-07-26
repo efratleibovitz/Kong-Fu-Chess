@@ -12,6 +12,11 @@ class GameState:
     clock: int = 0
     game_over: bool = False
     selected_position: Optional[Position] = None
+    # Per-color selection, used only by the server (click_cell/jump_cell) so
+    # one connection's selection can never be misread as another's - kept
+    # separate from selected_position, which stays the single shared cursor
+    # solo/hotseat play (click/jump) has always used.
+    selected_by_color: Dict[str, Optional[Position]] = field(default_factory=lambda: {'w': None, 'b': None})
     pending_moves: List[Tuple[str, Position, Position, int, int, List[str]]] = field(default_factory=list)
     pending_jumps: List[Tuple[str, Position, int]] = field(default_factory=list)
     cooldowns: Dict[Tuple[int,int], int] = field(default_factory=dict)
@@ -69,12 +74,19 @@ class GameState:
                 move_history=[(m.time_ms, m.notation) for m in self.move_history if m.color == color]
             )
 
+        white_sel = self.selected_by_color.get('w')
+        black_sel = self.selected_by_color.get('b')
+
         return RenderState(
             num_cols=self.board.num_cols,
             num_rows=self.board.num_rows,
             pieces=pieces,
             selected_col=self.selected_position.col if self.selected_position else None,
             selected_row=self.selected_position.row if self.selected_position else None,
+            white_selected_col=white_sel.col if white_sel else None,
+            white_selected_row=white_sel.row if white_sel else None,
+            black_selected_col=black_sel.col if black_sel else None,
+            black_selected_row=black_sel.row if black_sel else None,
             pending_destinations=[MoveArrow(m[2].col, m[2].row) for m in self.pending_moves],
             clock_ms=self.clock,
             white=_player('w'),

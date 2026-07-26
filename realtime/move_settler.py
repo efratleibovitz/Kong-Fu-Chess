@@ -70,6 +70,8 @@ class MoveSettler:
                 for cap, _ in mid_path_captures:
                     if CaptureRules.is_king_captured(cap):
                         state.loser = 'w' if cap.color.value == 'white' else 'b'
+                        state.events.emit('game_over', loser=state.loser)
+
 
             for cap_piece, cap_pos in mid_path_captures:
                 board.set_piece(cap_pos, None)
