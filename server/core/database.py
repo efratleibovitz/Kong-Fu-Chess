@@ -2,6 +2,7 @@ import sqlite3
 import os
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "chess.db")
+SESSION_TTL_SECONDS = 24 * 60 * 60  # a token is valid for 24h after login
 
 
 def _connect():
@@ -22,9 +23,14 @@ def init_db():
             CREATE TABLE IF NOT EXISTS sessions (
                 token      TEXT    PRIMARY KEY,
                 user_id    INTEGER NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP
             )
         """)
+        # migrate DBs created before expires_at existed
+        columns = [row[1] for row in conn.execute("PRAGMA table_info(sessions)").fetchall()]
+        if "expires_at" not in columns:
+            conn.execute("ALTER TABLE sessions ADD COLUMN expires_at TIMESTAMP")
 
 
 def create_user(username: str, password_hash: str) -> int:
@@ -64,14 +70,15 @@ def update_user_elo(user_id: int, new_elo: int) -> None:
 def create_session_record(token: str, user_id: int) -> None:
     with _connect() as conn:
         conn.execute(
-            "INSERT INTO sessions (token, user_id) VALUES (?, ?)",
-            (token, user_id),
+            "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, datetime('now', ?))",
+            (token, user_id, f"+{SESSION_TTL_SECONDS} seconds"),
         )
 
 
 def get_user_id_by_token(token: str) -> int | None:
     with _connect() as conn:
         row = conn.execute(
-            "SELECT user_id FROM sessions WHERE token = ?", (token,)
+            "SELECT user_id FROM sessions WHERE token = ? AND expires_at > CURRENT_TIMESTAMP",
+            (token,),
         ).fetchone()
         return row[0] if row else None

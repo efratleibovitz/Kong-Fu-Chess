@@ -7,6 +7,7 @@ values and player colors, so a typo becomes a NameError during development
 instead of a silent protocol mismatch.
 """
 
+from dataclasses import dataclass, field
 from enum import Enum
 
 HOST = "localhost"
@@ -16,16 +17,63 @@ MATCHMAKING_PORT = 8766
 COLOR_WHITE = "w"
 COLOR_BLACK = "b"
 
-MSG_TYPE_CLICK = "click"
-MSG_TYPE_JUMP = "jump"
-MSG_TYPE_RESTART = "restart"
-MSG_TYPE_STATE = "state"
-MSG_TYPE_WAITING = "waiting"
-MSG_TYPE_START = "start"
-MSG_TYPE_GAME_OVER = "game_over"
-MSG_TYPE_MATCH_FOUND = "match_found"
-MSG_TYPE_ERROR = "error"
-MSG_TYPE_ROLE = "role"
+class MsgType(Enum):
+    """Wire-protocol "type" field values. This enum is the single source of
+    truth; the MSG_TYPE_* constants below just expose `.value` so every
+    existing call site (dict literals, `msg.get("type") == MSG_TYPE_X`
+    comparisons) keeps working unchanged - only the definition moved from a
+    bare string to an enum member, per the "missing enum" review note."""
+    CLICK = "click"
+    JUMP = "jump"
+    RESTART = "restart"
+    STATE = "state"
+    WAITING = "waiting"
+    START = "start"
+    GAME_OVER = "game_over"
+    MATCH_FOUND = "match_found"
+    ERROR = "error"
+    ROLE = "role"
+
+
+MSG_TYPE_CLICK = MsgType.CLICK.value
+MSG_TYPE_JUMP = MsgType.JUMP.value
+MSG_TYPE_RESTART = MsgType.RESTART.value
+MSG_TYPE_STATE = MsgType.STATE.value
+MSG_TYPE_WAITING = MsgType.WAITING.value
+MSG_TYPE_START = MsgType.START.value
+MSG_TYPE_GAME_OVER = MsgType.GAME_OVER.value
+MSG_TYPE_MATCH_FOUND = MsgType.MATCH_FOUND.value
+MSG_TYPE_ERROR = MsgType.ERROR.value
+MSG_TYPE_ROLE = MsgType.ROLE.value
+
+@dataclass
+class Message:
+    """A websocket message: a `type` plus arbitrary named fields. Replaces
+    hand-built `{"type": ..., ...}` dict literals at every send/receive
+    site with one shared, typed envelope - `to_dict()` produces the exact
+    same flat wire shape those literals did, so this changes nothing about
+    what's actually transmitted, only how it's constructed/read in code.
+    `.get()`/`__getitem__` mirror plain dict access so existing handler
+    code that does `msg.get("col")`/`msg["data"]` keeps working unchanged
+    whether `msg` is a `Message` or (in older/direct-construction tests) a
+    bare dict."""
+    type: MsgType
+    fields: dict = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        return {"type": self.type.value, **self.fields}
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Message":
+        data = dict(data)
+        return cls(type=MsgType(data.pop("type")), fields=data)
+
+    def get(self, key, default=None):
+        return self.fields.get(key, default)
+
+    def __getitem__(self, key):
+        return self.fields[key]
+
 
 QUERY_ROOM_ID = "room_id"
 QUERY_TOKEN = "token"

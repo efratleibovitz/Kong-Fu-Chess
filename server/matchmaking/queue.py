@@ -5,7 +5,7 @@ import json
 import time
 import uuid
 
-from server.core.protocol import COLOR_WHITE, COLOR_BLACK, MSG_TYPE_ERROR, MSG_TYPE_MATCH_FOUND, FIELD_REASON, Reason
+from server.core.protocol import COLOR_WHITE, COLOR_BLACK, MsgType, Message, FIELD_REASON, Reason
 
 _queue: list[dict] = []
 _lock = asyncio.Lock()
@@ -58,7 +58,7 @@ async def _check_loop(entry: dict) -> None:
                     entry["matched"] = True
                     if entry in _queue:
                         _queue.remove(entry)
-                    await entry["ws"].send(json.dumps({"type": MSG_TYPE_ERROR, FIELD_REASON: Reason.TIMEOUT.value}))
+                    await entry["ws"].send(json.dumps(Message(MsgType.ERROR, {FIELD_REASON: Reason.TIMEOUT.value}).to_dict()))
                 return
 
             window = _current_window(entry["entered"])
@@ -98,6 +98,6 @@ async def _check_loop(entry: dict) -> None:
         )
         register_session(room_id, session)
 
-        await entry["ws"].send(json.dumps({"type": MSG_TYPE_MATCH_FOUND, "color": COLOR_WHITE, "room_id": room_id}))
-        await candidate["ws"].send(json.dumps({"type": MSG_TYPE_MATCH_FOUND, "color": COLOR_BLACK, "room_id": room_id}))
+        await entry["ws"].send(json.dumps(Message(MsgType.MATCH_FOUND, {"color": COLOR_WHITE, "room_id": room_id}).to_dict()))
+        await candidate["ws"].send(json.dumps(Message(MsgType.MATCH_FOUND, {"color": COLOR_BLACK, "room_id": room_id}).to_dict()))
         return

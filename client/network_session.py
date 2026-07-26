@@ -21,7 +21,7 @@ from view.render_state import RenderState, PieceRenderInfo, MoveArrow
 from core.input.board_mapper import BoardMapper
 from client.network_client import NetworkClient
 from client.render_state_codec import render_state_from_dict
-from server.core.protocol import COLOR_WHITE, COLOR_BLACK, MSG_TYPE_STATE, MSG_TYPE_GAME_OVER
+from server.core.protocol import COLOR_WHITE, COLOR_BLACK, MsgType
 
 NUM_COLS = 8
 NUM_ROWS = 8
@@ -66,8 +66,8 @@ class NetworkSession:
         self._feedback: str | None = None
         self._feedback_ms_remaining = 0
         self._handlers = {
-            MSG_TYPE_STATE: self._handle_state,
-            MSG_TYPE_GAME_OVER: self._handle_game_over,
+            MsgType.STATE: self._handle_state,
+            MsgType.GAME_OVER: self._handle_game_over,
         }
 
     # --- state role ---
@@ -148,8 +148,8 @@ class NetworkSession:
             return True, None
         return (False, "Not your piece") if dest_color is not None else (False, None)
 
-    def _handle_message(self, msg: dict):
-        handler = self._handlers.get(msg.get("type"))
+    def _handle_message(self, msg):
+        handler = self._handlers.get(msg.type)
         if handler:
             handler(msg)
 

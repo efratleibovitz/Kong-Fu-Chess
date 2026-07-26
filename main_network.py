@@ -14,10 +14,8 @@ from server.core.protocol import (
     MATCHMAKING_PORT,
     COLOR_WHITE,
     COLOR_BLACK,
-    MSG_TYPE_MATCH_FOUND,
-    MSG_TYPE_ERROR,
-    MSG_TYPE_ROLE,
-    MSG_TYPE_WAITING,
+    MsgType,
+    Message,
     QUERY_ROOM_ID,
     QUERY_TOKEN,
     QUERY_CREATE,
@@ -52,15 +50,16 @@ def _get_token() -> str:
         return token
 
 
-def _connect_matchmaking(token: str) -> dict:
+def _connect_matchmaking(token: str) -> Message:
     """Blocking one-shot connect: sits on the socket until match_found."""
     with websockets.sync.client.connect(f"{MATCHMAKING_URL}?{QUERY_TOKEN}={token}") as ws:
         for raw in ws:
-            msg = json.loads(raw)
-            log_received(msg)
-            if msg.get("type") == MSG_TYPE_MATCH_FOUND:
+            data = json.loads(raw)
+            log_received(data)
+            msg = Message.from_dict(data)
+            if msg.type is MsgType.MATCH_FOUND:
                 return msg
-            if msg.get("type") == MSG_TYPE_ERROR:
+            if msg.type is MsgType.ERROR:
                 raise ServerError(Reason(msg.get(FIELD_REASON)))
 
 
@@ -75,14 +74,14 @@ def _peek_role(url: str, need_room_id: bool) -> tuple[str, str | None]:
     room_id = None
     with websockets.sync.client.connect(url) as ws:
         for raw in ws:
-            msg = json.loads(raw)
-            log_received(msg)
-            msg_type = msg.get("type")
-            if msg_type == MSG_TYPE_ROLE:
+            data = json.loads(raw)
+            log_received(data)
+            msg = Message.from_dict(data)
+            if msg.type is MsgType.ROLE:
                 role = msg["role"]
-            elif msg_type == MSG_TYPE_WAITING:
+            elif msg.type is MsgType.WAITING:
                 room_id = msg.get(QUERY_ROOM_ID)
-            elif msg_type == MSG_TYPE_ERROR:
+            elif msg.type is MsgType.ERROR:
                 raise ServerError(Reason(msg.get(FIELD_REASON)))
             if role is not None and (not need_room_id or room_id is not None):
                 break

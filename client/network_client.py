@@ -21,7 +21,7 @@ import queue
 import threading
 import websockets.sync.client
 
-from server.core.protocol import MSG_TYPE_CLICK, MSG_TYPE_JUMP, MSG_TYPE_RESTART, MSG_TYPE_STATE
+from server.core.protocol import MsgType, Message
 
 _LOG_DIR = os.path.join(os.path.dirname(__file__), "logs")
 os.makedirs(_LOG_DIR, exist_ok=True)
@@ -39,7 +39,7 @@ def log_sent(msg: dict) -> None:
 
 
 def log_received(msg: dict) -> None:
-    if msg.get("type") == MSG_TYPE_STATE:
+    if msg.get("type") == MsgType.STATE.value:
         # "state" broadcasts fire every ~100ms during play (every tick) -
         # not a meaningful discrete action, so skip logging them entirely.
         # Every other (small, infrequent) message type logs in full.
@@ -61,11 +61,11 @@ class NetworkClient:
         with websockets.sync.client.connect(self._url) as ws:
             self._ws = ws
             for raw in ws:
-                msg = json.loads(raw)
-                log_received(msg)
-                self._queue.put(msg)
+                data = json.loads(raw)
+                log_received(data)
+                self._queue.put(Message.from_dict(data))
 
-    def poll(self) -> list[dict]:
+    def poll(self) -> list[Message]:
         messages = []
         while True:
             try:
@@ -74,15 +74,16 @@ class NetworkClient:
                 break
         return messages
 
-    def _send(self, payload: dict):
+    def _send(self, message: Message):
+        payload = message.to_dict()
         log_sent(payload)
         self._ws.send(json.dumps(payload))
 
     def send_click(self, col: int, row: int):
-        self._send({"type": MSG_TYPE_CLICK, "col": col, "row": row})
+        self._send(Message(MsgType.CLICK, {"col": col, "row": row}))
 
     def send_jump(self, col: int, row: int):
-        self._send({"type": MSG_TYPE_JUMP, "col": col, "row": row})
+        self._send(Message(MsgType.JUMP, {"col": col, "row": row}))
 
     def send_restart(self):
-        self._send({"type": MSG_TYPE_RESTART})
+        self._send(Message(MsgType.RESTART))

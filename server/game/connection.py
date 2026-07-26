@@ -6,11 +6,8 @@ from urllib.parse import urlparse, parse_qs
 from server.core.protocol import (
     COLOR_WHITE,
     COLOR_BLACK,
-    MSG_TYPE_CLICK,
-    MSG_TYPE_JUMP,
-    MSG_TYPE_RESTART,
-    MSG_TYPE_ERROR,
-    MSG_TYPE_ROLE,
+    MsgType,
+    Message,
     QUERY_ROOM_ID,
     QUERY_TOKEN,
     QUERY_CREATE,
@@ -30,37 +27,37 @@ def _piece_owner(piece) -> str:
     return COLOR_WHITE if piece.color.value == 'white' else COLOR_BLACK
 
 
-async def game_handler(websocket):
-    params = parse_qs(urlparse(websocket.request.path).query)
+async def game_handler(client_socket):
+    params = parse_qs(urlparse(client_socket.request.path).query)
     room_id = params.get(QUERY_ROOM_ID, [None])[0]
     create = params.get(QUERY_CREATE, [None])[0] == FLAG_TRUE
     token = params.get(QUERY_TOKEN, [None])[0]
 
     user_id = get_user_id_by_token(token) if token else None
     if user_id is None:
-        await websocket.send(json.dumps({"type": MSG_TYPE_ERROR, FIELD_REASON: Reason.UNAUTHORIZED.value}))
-        await websocket.close()
+        await client_socket.send(json.dumps(Message(MsgType.ERROR, {FIELD_REASON: Reason.UNAUTHORIZED.value}).to_dict()))
+        await client_socket.close()
         return
 
     if create:
         if room_id and get_session(room_id) is not None:
-            await websocket.send(json.dumps({"type": MSG_TYPE_ERROR, FIELD_REASON: Reason.ROOM_EXISTS.value}))
-            await websocket.close()
+            await client_socket.send(json.dumps(Message(MsgType.ERROR, {FIELD_REASON: Reason.ROOM_EXISTS.value}).to_dict()))
+            await client_socket.close()
             return
         room_id = create_room(room_id)
     elif not room_id or get_session(room_id) is None:
-        await websocket.send(json.dumps({"type": MSG_TYPE_ERROR, FIELD_REASON: Reason.INVALID_ROOM.value}))
-        await websocket.close()
+        await client_socket.send(json.dumps(Message(MsgType.ERROR, {FIELD_REASON: Reason.INVALID_ROOM.value}).to_dict()))
+        await client_socket.close()
         return
 
     session = get_session(room_id)
-    connection = Connection(websocket, session, user_id)
+    connection = Connection(client_socket, session, user_id)
     await connection.run()
 
 
 class Connection:
-    def __init__(self, websocket, session, user_id: int):
-        self.websocket = websocket
+    def __init__(self, client_socket, session, user_id: int):
+        self.client_socket = client_socket
         self.session = session
         self.user_id = user_id
         self.username = "unknown"
@@ -68,16 +65,16 @@ class Connection:
         self.is_viewer = False
         self._role: Role | None = None
         self._handlers = {
-            MSG_TYPE_CLICK: self._handle_click,
-            MSG_TYPE_JUMP: self._handle_jump,
-            MSG_TYPE_RESTART: self._handle_restart,
+            MsgType.CLICK: self._handle_click,
+            MsgType.JUMP: self._handle_jump,
+            MsgType.RESTART: self._handle_restart,
         }
 
-    async def send(self, message: dict):
-        await self.websocket.send(json.dumps(message))
+    async def send(self, message: Message):
+        await self.client_socket.send(json.dumps(message.to_dict()))
 
     async def send_raw(self, payload: str):
-        await self.websocket.send(payload)
+        await self.client_socket.send(payload)
 
     def _log(self, action: str, comment: str = "") -> None:
         log_action(self.session.room_id, self.user_id, self.username, self._role, action, comment)
@@ -85,8 +82,8 @@ class Connection:
     async def run(self):
         role = self.session.assign_color(self, self.user_id)
         if role is None:
-            await self.send({"type": MSG_TYPE_ERROR, FIELD_REASON: Reason.REJECTED.value})
-            await self.websocket.close()
+            await self.send(Message(MsgType.ERROR, {FIELD_REASON: Reason.REJECTED.value}))
+            await self.client_socket.close()
             return
 
         self._role = role
@@ -96,13 +93,13 @@ class Connection:
             self.color = role.value
         user = get_user_by_id(self.user_id)
         self.username = user["username"] if user else "unknown"
-        await self.send({"type": MSG_TYPE_ROLE, "role": role.value})
+        await self.send(Message(MsgType.ROLE, {"role": role.value}))
         self._log("connect")
 
         self.session.on_connect(self)
         await self.session.on_connected(self)
         try:
-            async for raw in self.websocket:
+            async for raw in self.client_socket:
                 await self._handle_message(raw)
         finally:
             self._log("disconnect")
@@ -112,11 +109,11 @@ class Connection:
         if self.is_viewer:
             return
         try:
-            msg = json.loads(raw)
-        except (json.JSONDecodeError, TypeError):
+            msg = Message.from_dict(json.loads(raw))
+        except (json.JSONDecodeError, TypeError, KeyError, ValueError):
             return
 
-        handler = self._handlers.get(msg.get("type"))
+        handler = self._handlers.get(msg.type)
         if handler:
             handler(msg)
 

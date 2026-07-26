@@ -7,7 +7,7 @@ import types
 import pytest
 
 import server.core.game_logger as game_logger
-from server.core.protocol import Role, COLOR_WHITE, COLOR_BLACK
+from server.core.protocol import Role, COLOR_WHITE, COLOR_BLACK, Message, MsgType
 from server.game.session import GameSession
 from server.game.rooms import create_room
 from server.game.connection import Connection, game_handler
@@ -19,7 +19,7 @@ class FakeWebSocket:
     calls .send_raw() on it - real Connection objects provide both from
     a wrapped websocket, so this fake just implements both directly.
     game_handler tests also need `.request.path` (for urlparse) and async
-    iteration (Connection.run()'s `async for raw in self.websocket` - an
+    iteration (Connection.run()'s `async for raw in self.client_socket` - an
     empty/closed stream, since these tests only care about game_handler's
     routing, not live gameplay)."""
 
@@ -128,7 +128,7 @@ class TestViewerBroadcast:
             session.assign_color(conn_b, user_id=2)
             session.assign_color(conn_c, user_id=3)
 
-            await session.broadcast({"type": "state", "data": {}})
+            await session.broadcast(Message(MsgType.STATE, {"data": {}}))
 
             assert conn_c.sent == [{"type": "state", "data": {}}]
 
@@ -327,7 +327,7 @@ class TestRoomIsolation:
             session_a.assign_color(conn_a, user_id=1)
             session_b.assign_color(conn_b, user_id=2)
 
-            await session_a.broadcast({"type": "state", "data": {}})
+            await session_a.broadcast(Message(MsgType.STATE, {"data": {}}))
 
             assert conn_a.sent == [{"type": "state", "data": {}}]
             assert conn_b.sent == []

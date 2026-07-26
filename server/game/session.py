@@ -10,15 +10,14 @@ import json
 from enum import Enum
 
 from core.model.board import Board
+from core.model.default_board import DEFAULT_BOARD
 from core.model.game_state import GameState
 from core.engine.game_engine import GameEngine
 from server.core.protocol import (
     COLOR_WHITE,
     COLOR_BLACK,
-    MSG_TYPE_STATE,
-    MSG_TYPE_WAITING,
-    MSG_TYPE_START,
-    MSG_TYPE_GAME_OVER,
+    MsgType,
+    Message,
     Role,
 )
 from server.core.database import get_user_by_id
@@ -27,17 +26,6 @@ from server.core.game_logger import get_room_logger, log_action
 TICK_MS = 16
 TICKS_PER_BROADCAST = 6
 GRACE_SECONDS = 20
-
-DEFAULT_BOARD = [
-    ['bR', 'bN', 'bB', 'bK', 'bQ', 'bB', 'bN', 'bR'],
-    ['bP', 'bP', 'bP', 'bP', 'bP', 'bP', 'bP', 'bP'],
-    ['.', '.', '.', '.', '.', '.', '.', '.'],
-    ['.', '.', '.', '.', '.', '.', '.', '.'],
-    ['.', '.', '.', '.', '.', '.', '.', '.'],
-    ['.', '.', '.', '.', '.', '.', '.', '.'],
-    ['wP', 'wP', 'wP', 'wP', 'wP', 'wP', 'wP', 'wP'],
-    ['wR', 'wN', 'wB', 'wK', 'wQ', 'wB', 'wN', 'wR'],
-]
 
 
 class _EnumSafeEncoder(json.JSONEncoder):
@@ -170,11 +158,11 @@ class GameSession:
     async def on_connected(self, connection):
         if not self._game_started:
             if len(self.connections) == 1:
-                await connection.send({"type": MSG_TYPE_WAITING, "room_id": self.room_id})
+                await connection.send(Message(MsgType.WAITING, {"room_id": self.room_id}))
             elif len(self.connections) == 2:
                 self._game_started = True
                 for color, conn in self.connections.items():
-                    await conn.send({"type": MSG_TYPE_START, "color": color})
+                    await conn.send(Message(MsgType.START, {"color": color}))
                 self._start_tick_loop()
         else:
             # Reconnect after the game already began: to_render_state()
@@ -184,11 +172,12 @@ class GameSession:
 
     async def _send_resync(self, connection):
         render_state = self.state.to_render_state()
-        payload = json.dumps({"type": MSG_TYPE_STATE, "data": dataclasses.asdict(render_state)}, cls=_EnumSafeEncoder)
+        message = Message(MsgType.STATE, {"data": dataclasses.asdict(render_state)})
+        payload = json.dumps(message.to_dict(), cls=_EnumSafeEncoder)
         await connection.send_raw(payload)
 
-    async def broadcast(self, message: dict):
-        payload = json.dumps(message, cls=_EnumSafeEncoder)
+    async def broadcast(self, message: Message):
+        payload = json.dumps(message.to_dict(), cls=_EnumSafeEncoder)
         for conn in list(self.connections.values()) + list(self.viewers):
             await conn.send_raw(payload)
 
@@ -197,7 +186,7 @@ class GameSession:
 
     def _on_game_over(self, loser=None, reason='capture', **_kwargs):
         asyncio.create_task(self._broadcast_state())
-        asyncio.create_task(self.broadcast({"type": MSG_TYPE_GAME_OVER, "loser": loser}))
+        asyncio.create_task(self.broadcast(Message(MsgType.GAME_OVER, {"loser": loser})))
         self._log_game_over(loser, reason)
 
     def _log_game_over(self, loser: str | None, reason: str) -> None:
@@ -212,7 +201,7 @@ class GameSession:
 
     async def _broadcast_state(self):
         render_state = self.state.to_render_state()
-        await self.broadcast({"type": MSG_TYPE_STATE, "data": dataclasses.asdict(render_state)})
+        await self.broadcast(Message(MsgType.STATE, {"data": dataclasses.asdict(render_state)}))
 
     def _start_tick_loop(self):
         if self._tick_task is None:
