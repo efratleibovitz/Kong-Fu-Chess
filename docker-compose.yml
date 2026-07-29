@@ -1,0 +1,86 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: chess
+      POSTGRES_USER: chess
+      POSTGRES_PASSWORD: chess
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chess"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    # Not wired to any service yet - matchmaking still uses a single
+    # in-memory queue (fine for 1 replica, per Server_Design.md Sec.5/7).
+    # Included now so the Redis-backed queue (Sec.4 Q2) has somewhere to
+    # plug into without a compose change later.
+
+  api-gateway:
+    build: .
+    command: python -m server.api.app
+    environment:
+      DATABASE_URL: postgresql://chess:chess@postgres:5432/chess
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  ws-gateway:
+    build: .
+    command: python -m server.gateway.app
+    environment:
+      NUM_SHARDS: "2"
+    ports:
+      - "8765:8765"
+    depends_on:
+      - game-server-0
+      - game-server-1
+
+  matchmaking:
+    build: .
+    command: python -m server.matchmaking.app
+    environment:
+      DATABASE_URL: postgresql://chess:chess@postgres:5432/chess
+      NUM_SHARDS: "2"
+    ports:
+      - "8766:8766"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      game-server-0:
+        condition: service_started
+      game-server-1:
+        condition: service_started
+
+  game-server-0:
+    build: .
+    command: python -m server.game.shard_app
+    environment:
+      SHARD_INDEX: "0"
+      NUM_SHARDS: "2"
+      DATABASE_URL: postgresql://chess:chess@postgres:5432/chess
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # No published ports - internal-only, reached by ws-gateway/matchmaking
+    # over the Docker network at game-server-0:9600.
+
+  game-server-1:
+    build: .
+    command: python -m server.game.shard_app
+    environment:
+      SHARD_INDEX: "1"
+      NUM_SHARDS: "2"
+      DATABASE_URL: postgresql://chess:chess@postgres:5432/chess
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:

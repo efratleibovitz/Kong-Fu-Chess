@@ -1,0 +1,9 @@
+venv/
+.git/
+.pytest_cache/
+htmlcov/
+**/__pycache__/
+**/*.pyc
+server/logs/*.log
+server/chess.db
+client/logs/

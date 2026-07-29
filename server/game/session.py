@@ -1,0 +1,243 @@
+
+"""server/game/session.py
+
+GameSession owns a single game's GameState + GameEngine.
+"""
+
+import asyncio
+import dataclasses
+import json
+from enum import Enum
+
+from core.model.board import Board
+from core.model.default_board import DEFAULT_BOARD
+from core.model.game_state import GameState
+from core.engine.game_engine import GameEngine
+from server.core.protocol import (
+    COLOR_WHITE,
+    COLOR_BLACK,
+    MsgType,
+    Message,
+    Role,
+)
+from server.core.database import get_user_by_id, get_player_record
+from server.core.game_logger import get_room_logger, log_action
+
+TICK_MS = 16
+TICKS_PER_BROADCAST = 6
+GRACE_SECONDS = 20
+
+
+class _EnumSafeEncoder(json.JSONEncoder):
+    """RenderState carries a PieceState Enum field. dataclasses.asdict()
+    does NOT convert nested Enum values, so plain json.dumps() crashes.
+    This encoder fixes that without touching view/render_state.py."""
+    def default(self, obj):
+        if isinstance(obj, Enum):
+            return obj.value
+        return super().default(obj)
+
+
+_sessions: dict[str, "GameSession"] = {}
+
+
+def register_session(room_id: str, session: "GameSession") -> None:
+    _sessions[room_id] = session
+    session.room_id = room_id
+    get_room_logger(room_id)
+
+
+def get_session(room_id: str) -> "GameSession | None":
+    return _sessions.get(room_id)
+
+
+class GameSession:
+    def __init__(
+        self,
+        white_user_id: int | None = None,
+        white_elo: int | None = None,
+        black_user_id: int | None = None,
+        black_elo: int | None = None,
+        allow_viewers: bool = False,
+    ):
+        state = GameState(Board([row[:] for row in DEFAULT_BOARD]))
+        state.player_names = {COLOR_WHITE: 'White', COLOR_BLACK: 'Black'}
+        self.state = state
+        self.engine = GameEngine(state)
+
+        self.room_id: str | None = None
+        self.connections: dict[str, "Connection"] = {}
+        self.viewers: list = []
+        self.allow_viewers = allow_viewers
+        self._tick_task: asyncio.Task | None = None
+        self._tick_counter = 0
+        self._game_started = False
+        self._forfeit_tasks: dict[str, asyncio.Task] = {}
+
+        self.white_user_id = white_user_id
+        self.white_elo = white_elo
+        self.black_user_id = black_user_id
+        self.black_elo = black_elo
+
+        # Matchmaking already knows both identities at construction time;
+        # rooms (allow_viewers=True) fill these in dynamically as each
+        # player joins - see assign_color below.
+        if white_user_id is not None:
+            self._apply_player_identity(COLOR_WHITE, white_user_id)
+        if black_user_id is not None:
+            self._apply_player_identity(COLOR_BLACK, black_user_id)
+
+        state.events.subscribe('piece_settled', self._on_state_event)
+        state.events.subscribe('selection_changed', self._on_state_event)
+        state.events.subscribe('game_over', self._on_game_over)
+
+    def _apply_player_identity(self, color: str, user_id: int) -> None:
+        """Pulls the real username/elo from the DB (as a typed PlayerRecord,
+        not a loose dict) and surfaces them onto GameState so they reach
+        the client via RenderState - replacing the hardcoded 'White'/
+        'Black' labels that were never actually updated with who's really
+        playing."""
+        record = get_player_record(user_id)
+        if record is None:
+            return
+        self.state.player_names[color] = record.username
+        self.state.player_elo[color] = record.elo
+
+    def assign_color(self, connection, user_id: int) -> Role | None:
+        """Identity-based, not slot-order: a reconnecting player gets back
+        the color that matches their user_id, and an unrelated/duplicate
+        connection is rejected instead of stealing the open slot - unless
+        `allow_viewers` (Stage E rooms), in which case the first two
+        distinct joiners claim the open color slots and anyone after that
+        becomes a read-only Role.VIEWER instead of being rejected."""
+        if user_id == self.white_user_id:
+            role = Role.WHITE
+        elif user_id == self.black_user_id:
+            role = Role.BLACK
+        elif self.allow_viewers and self.white_user_id is None:
+            self.white_user_id = user_id
+            self._apply_player_identity(COLOR_WHITE, user_id)
+            role = Role.WHITE
+        elif self.allow_viewers and self.black_user_id is None:
+            self.black_user_id = user_id
+            self._apply_player_identity(COLOR_BLACK, user_id)
+            role = Role.BLACK
+        elif self.allow_viewers:
+            self.viewers.append(connection)
+            return Role.VIEWER
+        else:
+            return None
+
+        if role.value in self.connections:
+            return None
+        self.connections[role.value] = connection
+        return role
+
+    def on_connect(self, connection):
+        if connection in self.viewers:
+            return
+        task = self._forfeit_tasks.pop(connection.color, None)
+        if task is not None:
+            task.cancel()
+
+    def on_disconnect(self, connection):
+        if connection in self.viewers:
+            self.viewers.remove(connection)
+            return
+        color = None
+        for c, conn in list(self.connections.items()):
+            if conn is connection:
+                color = c
+                del self.connections[c]
+        if color is None or not self._game_started or self.state.game_over:
+            return
+        # Game keeps running for the remaining player during the grace
+        # window (real-time, non-turn-based game) - see _tick_loop, which
+        # is untouched by connection count and only stops on game_over.
+        self._forfeit_tasks[color] = asyncio.create_task(self._forfeit_after_grace(color))
+
+    async def _forfeit_after_grace(self, color: str):
+        try:
+            await asyncio.sleep(GRACE_SECONDS)
+        except asyncio.CancelledError:
+            return
+        if self.state.game_over:
+            return
+        winner = COLOR_BLACK if color == COLOR_WHITE else COLOR_WHITE
+        self.state.game_over = True
+        self.state.loser = color
+        self.state.events.emit('game_over', loser=color, reason='forfeit (disconnect grace expired)')
+        self._apply_elo_update(winner_color=winner, loser_color=color)
+
+    def _apply_elo_update(self, winner_color: str, loser_color: str):
+        winner_id = self.white_user_id if winner_color == COLOR_WHITE else self.black_user_id
+        loser_id = self.white_user_id if loser_color == COLOR_WHITE else self.black_user_id
+        if winner_id is None or loser_id is None:
+            return
+        from server.auth.service import update_elo
+        update_elo(winner_id, loser_id)
+
+    async def on_connected(self, connection):
+        if not self._game_started:
+            if len(self.connections) == 1:
+                await connection.send(Message(MsgType.WAITING, {"room_id": self.room_id}))
+            elif len(self.connections) == 2:
+                self._game_started = True
+                for color, conn in self.connections.items():
+                    await conn.send(Message(MsgType.START, {"color": color}))
+                self._start_tick_loop()
+        else:
+            # Reconnect after the game already began: to_render_state()
+            # is always a full snapshot, never a delta, so resync is just
+            # resending it - no separate diffing logic needed.
+            await self._send_resync(connection)
+
+    async def _send_resync(self, connection):
+        render_state = self.state.to_render_state()
+        message = Message(MsgType.STATE, {"data": dataclasses.asdict(render_state)})
+        payload = json.dumps(message.to_dict(), cls=_EnumSafeEncoder)
+        await connection.send_raw(payload)
+
+    async def broadcast(self, message: Message):
+        payload = json.dumps(message.to_dict(), cls=_EnumSafeEncoder)
+        for conn in list(self.connections.values()) + list(self.viewers):
+            await conn.send_raw(payload)
+
+    def _on_state_event(self, **_kwargs):
+        asyncio.create_task(self._broadcast_state())
+
+    def _on_game_over(self, loser=None, reason='capture', **_kwargs):
+        asyncio.create_task(self._broadcast_state())
+        asyncio.create_task(self.broadcast(Message(MsgType.GAME_OVER, {"loser": loser})))
+        self._log_game_over(loser, reason)
+        if loser is not None:
+            winner = COLOR_BLACK if loser == COLOR_WHITE else COLOR_WHITE
+            self._apply_elo_update(winner_color=winner, loser_color=loser)
+
+    def _log_game_over(self, loser: str | None, reason: str) -> None:
+        if loser is None or self.room_id is None:
+            return
+        loser_id = self.white_user_id if loser == COLOR_WHITE else self.black_user_id
+        if loser_id is None:
+            return
+        user = get_user_by_id(loser_id)
+        username = user["username"] if user else "unknown"
+        log_action(self.room_id, loser_id, username, loser, "game_over", reason)
+
+    async def _broadcast_state(self):
+        render_state = self.state.to_render_state()
+        await self.broadcast(Message(MsgType.STATE, {"data": dataclasses.asdict(render_state)}))
+
+    def _start_tick_loop(self):
+        if self._tick_task is None:
+            self._tick_task = asyncio.create_task(self._tick_loop())
+
+    async def _tick_loop(self):
+        await self._broadcast_state()
+        while not self.state.game_over:
+            await asyncio.sleep(TICK_MS / 1000)
+            self.engine.wait(TICK_MS)
+            self._tick_counter += 1
+            if self._tick_counter >= TICKS_PER_BROADCAST:
+                self._tick_counter = 0
+                await self._broadcast_state()

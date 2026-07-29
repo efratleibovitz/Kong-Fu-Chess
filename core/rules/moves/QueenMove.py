@@ -1,0 +1,23 @@
+# from core.rules.moves.MovementStrategy import MovementStrategy
+# from core.rules.moves.utils import is_blocked
+# from core.model.position import Position
+
+# class QueenMove(MovementStrategy):
+#     def is_valid(self, from_pos: Position, to_pos: Position, board) -> bool:
+#         dx = abs(to_pos.x - from_pos.x)
+#         dy = abs(to_pos.y - from_pos.y)
+#         if not (dx == 0 or dy == 0 or dx == dy):
+#             return False
+#         return not is_blocked(from_pos, to_pos, board)
+
+
+from core.rules.moves.MovementStrategy import MovementStrategy
+from core.model.position import Position
+
+class QueenMove(MovementStrategy):
+    def is_valid(self, from_pos: Position, to_pos: Position, board) -> bool:
+        dx = abs(to_pos.x - from_pos.x)
+        dy = abs(to_pos.y - from_pos.y)
+        if dx == 0 and dy == 0:
+            return False
+        return dx == 0 or dy == 0 or dx == dy
