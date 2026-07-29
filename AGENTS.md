@@ -8,20 +8,20 @@ It runs solo (text or graphical) or online 2-player over a websocket server, all
 
 ## Core architecture
 
-- Entry point: `main.py` — `python main.py [--gui | --online | --server]`; no flags = text mode (default, matches historical behavior), `--gui` = solo graphical, `--online` = online 2-player client, `--server` = start the game server. Each flag just imports and calls the existing `main()` from the module below — no logic is duplicated in `main.py` itself.
+- Entry point: `main.py` — `python main.py [--gui | --online]`; no flags = text mode, `--gui` = solo graphical, `--online` = online 2-player client. Each flag just imports and calls the existing `main()` from the module below — no logic is duplicated in `main.py` itself.
 - Graphical entry point (solo), also runnable directly: `main_ui.py`
 - Graphical entry point (online), also runnable directly: `main_network.py`
-- Game engine: `engine/game_engine.py`
-- Move scheduler: `engine/move_scheduler.py`
-- Board model: `model/board.py`
-- Game state: `model/game_state.py`
-- Event bus: `model/event_bus.py`
-- Move records and notation: `model/move_record.py`, `model/notation.py`
-- Move validation: `rules/rule_engine.py`, `rules/moves/`
-- Real-time settling: `realtime/move_settler.py`
-- Input parsing: `iofiles/board_parser.py`
+- Game engine: `core/engine/game_engine.py`
+- Move scheduler: `core/engine/move_scheduler.py`
+- Board model: `core/model/board.py`
+- Game state: `core/model/game_state.py`
+- Event bus: `core/model/event_bus.py`
+- Move records and notation: `core/model/move_record.py`, `core/model/notation.py`
+- Move validation: `core/rules/rule_engine.py`, `core/rules/moves/`
+- Real-time settling: `core/realtime/move_settler.py`
+- Input parsing: `core/iofiles/board_parser.py`
 - View layer: `view/`
-- Server (online play): `server/`
+- Server (online play): `server/` — split into `api/`, `gateway/`, `matchmaking/`, `game/`, `core/`, `auth/`
 - Client (online play): `client/`
 
 ## View layer
@@ -58,7 +58,7 @@ The server is layered into four packages under `server/` — `core/` (infrastruc
 - `server/core/protocol.py` — shared wire-protocol constants (message-type strings, color strings) plus `HOST`/`PORT`/`MATCHMAKING_PORT`. Both `server/` and `client/` import from here instead of repeating raw literals.
 - `server/auth/service.py` — register/login/password hashing/tokens/`update_elo` (was `server/auth.py`).
 - `server/auth/cli.py` — command-line register/login tool (was `server/cli.py`).
-- `server/matchmaking/queue.py` — the matchmaking queue and ELO window math (was `server/matchmaking.py`). ELO window starts at ±100 and widens by 100 every 15s (capped at ±500); 60s overall timeout.
+- `server/matchmaking/queue.py` — the matchmaking queue and ELO window math. ELO window starts at ±100 and widens by 100 every 15s (capped at ±500); 120s overall timeout. Check interval is 1s for fast matching. MATCH_FOUND is sent to both players before the candidate task is cancelled to avoid ConnectionClosedOK on the candidate socket.
 - `server/matchmaking/handler.py` — `matchmaking_handler`, the websocket entry point for the matchmaking port (extracted out of `server/app.py`).
 - `server/game/session.py` — `GameSession` (was `server/game_session.py`): module-level `register_session`/`get_session` registry keyed by `room_id`, populated by matchmaking when a match is made (or by `server/game/rooms.py` when a room is created). `register_session` also stamps `session.room_id` and wires up the per-room event logger (see `server/core/game_logger.py`) — the one shared place both entry points go through, so logging isn't set up twice. `assign_color(connection, user_id)` is **identity-based** (checked against `white_user_id`/`black_user_id`), not slot-order — this is what lets a reconnecting player get their own color back and rejects an unrelated or duplicate connection. It returns a `Role` (see below), not a raw string. `GRACE_SECONDS = 20`: on disconnect a forfeit timer is scheduled; reconnecting before it fires cancels it and triggers a full resync (`to_render_state()` resent as-is, no diffing); if it fires, it's a technical loss and `update_elo` is called. The tick loop is untouched by connection count — it only stops on `state.game_over`, so the game keeps running in real time while a player is disconnected. Do not change this without an explicit decision, since it affects UX (a disconnected player can lose material/position while away).
 - **Stage E — rooms and viewers**: `GameSession(allow_viewers=True)` (only set by `server/game/rooms.py`, never by matchmaking) makes `assign_color` treat the first two *distinct* joining `user_id`s as the open white/black slots instead of requiring them pre-assigned, and treats anyone after that as a read-only viewer (`Role.VIEWER`, appended to `self.viewers`, never `self.connections`) instead of rejecting them. `on_connect`/`on_disconnect` and `broadcast()` are viewer-aware (viewers get every broadcast state/game_over, never get a forfeit timer). `server/game/rooms.py` has no `join_room` function — joining a room is already exactly what `game_handler` + `assign_color` do via `get_session(room_id)`, so a second function would just duplicate that path.
@@ -107,6 +107,20 @@ Two standalone scripts also exercise online-play server logic end-to-end against
 
 - `python verify_stage_c.py` — matchmaking: token auth, ELO window widening, timeout, concurrent matching, room_id assignment.
 - `python verify_stage_d_manual.py` — interactive: registers two throwaway accounts, matches them, and lets you type `dc a`/`dc b` (disconnect) and `rc a`/`rc b` (reconnect) to watch the grace window, resync, forfeit, and ELO update happen live.
+
+## Docker
+
+All server services run via Docker Compose. One image is built for all server-side services — they share the same codebase and are started with different `command:` entries in `docker-compose.yml`.
+
+```bash
+docker compose up --build   # build and start everything
+docker compose down         # stop and remove containers
+docker compose logs <svc>   # e.g. docker compose logs matchmaking
+```
+
+Services: `postgres`, `redis`, `api-gateway` (port 8000), `ws-gateway` (port 8765), `matchmaking` (port 8766), `game-server-0` and `game-server-1` (internal port 9600).
+
+Clients run outside Docker and connect to `localhost:8765` (game) and `localhost:8766` (matchmaking) via the published ports.
 
 ## Notes for future AI assistants
 
