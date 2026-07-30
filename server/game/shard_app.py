@@ -25,8 +25,10 @@ import json
 import os
 
 import websockets
+from aiohttp import web
 
 from server.core.database import init_db
+from server.core.observability import get_logger, build_health_response, check_postgres, check_redis
 from server.core.internal_protocol import (
     SHARD_INTERNAL_PORT,
     NUM_SHARDS,
@@ -43,6 +45,9 @@ from server.game.session import GameSession, register_session
 
 SHARD_INDEX = int(os.environ.get("SHARD_INDEX", "0"))
 HOST = os.environ.get("HOST", "0.0.0.0")
+HEALTH_PORT = int(os.environ.get("SHARD_HEALTH_PORT", str(9600 + 1)))
+
+_log = get_logger(f"game-server-{SHARD_INDEX}")
 
 
 class RemoteClientSocket:
@@ -140,6 +145,25 @@ async def _internal_connection_handler(internal_ws):
 
 async def main():
     init_db()
+    _log.info("starting", extra={"shard": SHARD_INDEX, "port": SHARD_INTERNAL_PORT})
+
+    async def handle_health(request: web.Request) -> web.Response:
+        from server.game.session import _sessions
+        checks = {
+            "postgres": await check_postgres(),
+            "redis": await check_redis(),
+        }
+        body = build_health_response(f"game-server-{SHARD_INDEX}", checks)
+        body["active_sessions"] = len(_sessions)
+        status = 200 if body["status"] == "ok" else 503
+        return web.json_response(body, status=status)
+
+    health_app = web.Application()
+    health_app.router.add_get("/health", handle_health)
+    health_runner = web.AppRunner(health_app)
+    await health_runner.setup()
+    await web.TCPSite(health_runner, HOST, HEALTH_PORT).start()
+
     async with websockets.serve(_internal_connection_handler, HOST, SHARD_INTERNAL_PORT):
         print(f"Game Server shard {SHARD_INDEX}/{NUM_SHARDS} - internal listener on ws://{HOST}:{SHARD_INTERNAL_PORT}")
         await asyncio.Future()

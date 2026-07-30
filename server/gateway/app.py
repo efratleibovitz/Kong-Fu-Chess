@@ -15,12 +15,15 @@ NOT one internal connection per client, which would defeat the point.
 
 import asyncio
 import json
+import os
 import uuid
 from urllib.parse import urlparse, parse_qs, urlencode
 
 import websockets
+from aiohttp import web
 
 from server.core.protocol import QUERY_ROOM_ID, QUERY_CREATE, FLAG_TRUE
+from server.core.observability import get_logger, build_health_response, check_redis
 from server.core.internal_protocol import (
     NUM_SHARDS,
     shard_index_for_room,
@@ -34,7 +37,10 @@ from server.core.internal_protocol import (
 from server.core.redis_client import get_room_shard
 
 HOST = "0.0.0.0"
-PUBLIC_PORT = 8765  # same port the client already dials directly today
+PUBLIC_PORT = 8765
+HEALTH_PORT = int(os.environ.get("GATEWAY_HEALTH_PORT", "8768"))
+
+_log = get_logger("ws-gateway")
 
 # room_id -> local client websocket, for routing shard replies back out.
 _clients: dict[str, "websockets.WebSocketServerProtocol"] = {}
@@ -132,7 +138,22 @@ async def client_handler(client_ws):
 
 
 async def main():
+    async def handle_health(request: web.Request) -> web.Response:
+        checks = {"redis": await check_redis()}
+        body = build_health_response("ws-gateway", checks)
+        body["active_clients"] = len(_clients)
+        body["shard_connections"] = len(_shard_conns)
+        status = 200 if body["status"] == "ok" else 503
+        return web.json_response(body, status=status)
+
+    health_app = web.Application()
+    health_app.router.add_get("/health", handle_health)
+    health_runner = web.AppRunner(health_app)
+    await health_runner.setup()
+    await web.TCPSite(health_runner, HOST, HEALTH_PORT).start()
+
     async with websockets.serve(client_handler, HOST, PUBLIC_PORT):
+        _log.info("starting", extra={"port": PUBLIC_PORT, "shards": NUM_SHARDS})
         print(f"WS Gateway on ws://{HOST}:{PUBLIC_PORT} -> {NUM_SHARDS} shard(s)")
         await asyncio.Future()
 

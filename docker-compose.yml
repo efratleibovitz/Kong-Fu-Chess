@@ -38,8 +38,10 @@ services:
     environment:
       NUM_SHARDS: "2"
       REDIS_URL: redis://redis:6379
+      GATEWAY_HEALTH_PORT: "8768"
     ports:
       - "8765:8765"
+      - "8768:8768"
     depends_on:
       redis:
         condition: service_healthy
@@ -55,8 +57,10 @@ services:
       DATABASE_URL: postgresql://chess:chess@postgres:5432/chess
       NUM_SHARDS: "2"
       REDIS_URL: redis://redis:6379
+      MATCHMAKING_HEALTH_PORT: "8767"
     ports:
       - "8766:8766"
+      - "8767:8767"
     depends_on:
       postgres:
         condition: service_healthy
@@ -75,6 +79,9 @@ services:
       NUM_SHARDS: "2"
       DATABASE_URL: postgresql://chess:chess@postgres:5432/chess
       REDIS_URL: redis://redis:6379
+      SHARD_HEALTH_PORT: "9601"
+    ports:
+      - "9601:9601"
     depends_on:
       postgres:
         condition: service_healthy
@@ -91,6 +98,9 @@ services:
       NUM_SHARDS: "2"
       DATABASE_URL: postgresql://chess:chess@postgres:5432/chess
       REDIS_URL: redis://redis:6379
+      SHARD_HEALTH_PORT: "9602"
+    ports:
+      - "9602:9602"
     depends_on:
       postgres:
         condition: service_healthy
