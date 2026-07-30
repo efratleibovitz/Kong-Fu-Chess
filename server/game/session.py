@@ -22,6 +22,7 @@ from server.core.protocol import (
 )
 from server.core.database import get_user_by_id, get_player_record
 from server.core.game_logger import get_room_logger, log_action
+from server.core import redis_client as _rc
 
 TICK_MS = 16
 TICKS_PER_BROADCAST = 6
@@ -205,6 +206,7 @@ class GameSession:
 
     def _on_state_event(self, **_kwargs):
         asyncio.create_task(self._broadcast_state())
+        asyncio.create_task(self._persist())
 
     def _on_game_over(self, loser=None, reason='capture', **_kwargs):
         asyncio.create_task(self._broadcast_state())
@@ -213,6 +215,8 @@ class GameSession:
         if loser is not None:
             winner = COLOR_BLACK if loser == COLOR_WHITE else COLOR_WHITE
             self._apply_elo_update(winner_color=winner, loser_color=loser)
+        if self.room_id:
+            asyncio.create_task(_rc.delete_game_state(self.room_id))
 
     def _log_game_over(self, loser: str | None, reason: str) -> None:
         if loser is None or self.room_id is None:
@@ -227,6 +231,103 @@ class GameSession:
     async def _broadcast_state(self):
         render_state = self.state.to_render_state()
         await self.broadcast(Message(MsgType.STATE, {"data": dataclasses.asdict(render_state)}))
+
+    async def _persist(self) -> None:
+        if self.room_id is None or self.state.game_over:
+            return
+        await _rc.save_game_state(self.room_id, self._to_snapshot())
+
+    def _to_snapshot(self) -> dict:
+        """Serialise everything needed to rebuild this session after a
+        shard restart. WebSocket connections and asyncio tasks are
+        intentionally excluded - they are always re-established on reconnect."""
+        board_rows = [
+            [piece.token if piece is not None else '.' for piece in row]
+            for row in self.state.board.rows
+        ]
+        return {
+            "board_rows": board_rows,
+            "clock": self.state.clock,
+            "game_over": self.state.game_over,
+            "loser": self.state.loser,
+            "scores": self.state.scores,
+            "captured": {
+                color: [p.to_token() for p in pieces]
+                for color, pieces in self.state.captured.items()
+            },
+            "cooldowns": {
+                f"{k[0]},{k[1]}": v for k, v in self.state.cooldowns.items()
+            },
+            "rest_type": {
+                f"{k[0]},{k[1]}": v for k, v in self.state.rest_type.items()
+            },
+            "player_names": self.state.player_names,
+            "player_elo": self.state.player_elo,
+            "move_history": [
+                {"color": m.color, "time_ms": m.time_ms, "notation": m.notation}
+                for m in self.state.move_history
+            ],
+            "white_user_id": self.white_user_id,
+            "white_elo": self.white_elo,
+            "black_user_id": self.black_user_id,
+            "black_elo": self.black_elo,
+            "allow_viewers": self.allow_viewers,
+            "game_started": self._game_started,
+        }
+
+    @classmethod
+    def from_snapshot(cls, snapshot: dict) -> "GameSession":
+        """Rebuild a GameSession from a Redis snapshot. The restored session
+        has no live connections - those re-attach via assign_color on reconnect."""
+        from core.model.piece import Piece
+        from core.model.position import Position
+        from core.model.move_record import MoveRecord
+
+        raw_rows = snapshot["board_rows"]
+        board_rows = [
+            [Piece.from_token(t, Position(c, r)) if t != '.' else None
+             for c, t in enumerate(row)]
+            for r, row in enumerate(raw_rows)
+        ]
+
+        session = cls(
+            white_user_id=snapshot.get("white_user_id"),
+            white_elo=snapshot.get("white_elo"),
+            black_user_id=snapshot.get("black_user_id"),
+            black_elo=snapshot.get("black_elo"),
+            allow_viewers=snapshot.get("allow_viewers", False),
+        )
+
+        state = session.state
+        state.board.rows = board_rows
+        state.clock = snapshot.get("clock", 0)
+        state.game_over = snapshot.get("game_over", False)
+        state.loser = snapshot.get("loser")
+        state.scores = snapshot.get("scores", {"w": 0, "b": 0})
+        state.player_names = snapshot.get("player_names", {"w": "White", "b": "Black"})
+        state.player_elo = snapshot.get("player_elo", {"w": None, "b": None})
+
+        state.cooldowns = {
+            (int(k.split(",")[0]), int(k.split(",")[1])): v
+            for k, v in snapshot.get("cooldowns", {}).items()
+        }
+        state.rest_type = {
+            (int(k.split(",")[0]), int(k.split(",")[1])): v
+            for k, v in snapshot.get("rest_type", {}).items()
+        }
+
+        state.captured = {
+            color: [_Piece.from_token(t, _Pos(0, 0)) for t in tokens]
+            for color, tokens in snapshot.get("captured", {"w": [], "b": []}).items()
+        }
+
+        state.move_history = [
+            MoveRecord(color=m["color"], time_ms=m["time_ms"], notation=m["notation"])
+            for m in snapshot.get("move_history", [])
+        ]
+
+        session._game_started = snapshot.get("game_started", False)
+        return session
 
     def _start_tick_loop(self):
         if self._tick_task is None:

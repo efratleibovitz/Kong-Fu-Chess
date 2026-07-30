@@ -19,7 +19,8 @@ from server.core.protocol import (
 from server.auth.service import get_user_id_by_token
 from server.core.database import get_user_by_id
 from server.core.game_logger import log_action
-from server.game.session import get_session
+from server.core import redis_client as _rc
+from server.game.session import get_session, register_session, GameSession
 from server.game.rooms import create_room
 
 
@@ -59,10 +60,18 @@ async def handle_client(client_socket, path: str):
             await client_socket.close()
             return
         room_id = create_room(room_id)
-    elif not room_id or get_session(room_id) is None:
-        await client_socket.send(json.dumps(Message(MsgType.ERROR, {FIELD_REASON: Reason.INVALID_ROOM.value}).to_dict()))
-        await client_socket.close()
-        return
+    else:
+        session = get_session(room_id)
+        if session is None and room_id:
+            # Shard may have restarted - attempt to restore from Redis snapshot.
+            snapshot = await _rc.load_game_state(room_id)
+            if snapshot is not None:
+                session = GameSession.from_snapshot(snapshot)
+                register_session(room_id, session)
+        if not room_id or session is None:
+            await client_socket.send(json.dumps(Message(MsgType.ERROR, {FIELD_REASON: Reason.INVALID_ROOM.value}).to_dict()))
+            await client_socket.close()
+            return
 
     session = get_session(room_id)
     connection = Connection(client_socket, session, user_id)

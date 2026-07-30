@@ -127,3 +127,45 @@ async def clear_queue() -> None:
         await r.delete(MATCHMAKING_QUEUE_KEY)
     except Exception as e:
         _logger.warning("clear_queue failed: %s", e)
+
+
+# ---------------------------------------------------------------------------
+# Stage 3 — game state persistence
+# ---------------------------------------------------------------------------
+
+GAME_KEY_TTL_SECONDS = 7200  # 2 hours — well beyond any realistic game length
+
+
+async def save_game_state(room_id: str, snapshot: dict) -> None:
+    """Persist a full game snapshot. Called on every state event."""
+    r = await get_redis()
+    if r is None:
+        return
+    try:
+        await r.set(f"game:{room_id}", json.dumps(snapshot), ex=GAME_KEY_TTL_SECONDS)
+    except Exception as e:
+        _logger.warning("save_game_state failed: %s", e)
+
+
+async def load_game_state(room_id: str) -> dict | None:
+    """Return the snapshot dict, or None if not found / Redis unavailable."""
+    r = await get_redis()
+    if r is None:
+        return None
+    try:
+        val = await r.get(f"game:{room_id}")
+        return json.loads(val) if val is not None else None
+    except Exception as e:
+        _logger.warning("load_game_state failed: %s", e)
+        return None
+
+
+async def delete_game_state(room_id: str) -> None:
+    """Remove the snapshot when a game ends — keeps Redis clean."""
+    r = await get_redis()
+    if r is None:
+        return
+    try:
+        await r.delete(f"game:{room_id}")
+    except Exception as e:
+        _logger.warning("delete_game_state failed: %s", e)
