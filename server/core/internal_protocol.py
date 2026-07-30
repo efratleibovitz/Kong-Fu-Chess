@@ -45,3 +45,9 @@ KIND_SERVER_CLOSE = "server_close"      # {kind, conn_id}
 
 # Matchmaking -> shard (one-shot control call, connection closes right after)
 KIND_CREATE_SESSION = "create_session"  # {kind, room_id, white_user_id, white_elo, black_user_id, black_elo}
+
+
+def shard_channel(shard_index: int) -> str:
+    """Redis Pub/Sub channel name for a given shard index.
+    Matchmaking publishes to this channel; the shard subscribes to it."""
+    return f"shard:{shard_index}:events"

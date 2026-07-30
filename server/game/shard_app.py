@@ -38,8 +38,9 @@ from server.core.internal_protocol import (
     KIND_SERVER_MESSAGE,
     KIND_SERVER_CLOSE,
     KIND_CREATE_SESSION,
+    shard_channel,
 )
-from server.core.redis_client import set_room_shard
+from server.core.redis_client import set_room_shard, subscribe as redis_subscribe
 from server.game.connection import handle_client
 from server.game.session import GameSession, register_session
 
@@ -93,6 +94,38 @@ class RemoteClientSocket:
         if item is None:
             raise StopAsyncIteration
         return item
+
+
+async def _pubsub_listener():
+    """Subscribe to this shard's Redis channel and handle create_session
+    events published by Matchmaking. Runs as a background task alongside
+    the WebSocket server. If Redis is unavailable, exits silently —
+    Matchmaking falls back to the direct WebSocket path in that case."""
+    pubsub = await redis_subscribe(shard_channel(SHARD_INDEX))
+    if pubsub is None:
+        _log.info("pubsub_unavailable", extra={"shard": SHARD_INDEX})
+        return
+    _log.info("pubsub_listening", extra={"channel": shard_channel(SHARD_INDEX)})
+    try:
+        async for raw in pubsub.listen():
+            if raw["type"] != "message":
+                continue
+            try:
+                envelope = json.loads(raw["data"])
+            except (json.JSONDecodeError, TypeError):
+                continue
+            if envelope.get("kind") != KIND_CREATE_SESSION:
+                continue
+            session = GameSession(
+                white_user_id=envelope["white_user_id"],
+                white_elo=envelope.get("white_elo"),
+                black_user_id=envelope["black_user_id"],
+                black_elo=envelope.get("black_elo"),
+            )
+            register_session(envelope["room_id"], session)
+            _log.info("session_created", extra={"room_id": envelope["room_id"], "via": "pubsub"})
+    except Exception as e:
+        _log.info("pubsub_error", extra={"error": str(e)})
 
 
 async def _internal_connection_handler(internal_ws):
@@ -163,6 +196,8 @@ async def main():
     health_runner = web.AppRunner(health_app)
     await health_runner.setup()
     await web.TCPSite(health_runner, HOST, HEALTH_PORT).start()
+
+    asyncio.create_task(_pubsub_listener())
 
     async with websockets.serve(_internal_connection_handler, HOST, SHARD_INTERNAL_PORT):
         print(f"Game Server shard {SHARD_INDEX}/{NUM_SHARDS} - internal listener on ws://{HOST}:{SHARD_INTERNAL_PORT}")

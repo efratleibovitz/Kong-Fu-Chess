@@ -173,3 +173,35 @@ async def delete_game_state(room_id: str) -> None:
         await r.delete(f"game:{room_id}")
     except Exception as e:
         _logger.warning("delete_game_state failed: %s", e)
+
+
+# ---------------------------------------------------------------------------
+# Stage 5 — Redis Pub/Sub messaging
+# ---------------------------------------------------------------------------
+
+async def publish(channel: str, message: dict) -> bool:
+    """Publish a JSON message to a Redis channel. Returns True on success."""
+    r = await get_redis()
+    if r is None:
+        return False
+    try:
+        await r.publish(channel, json.dumps(message))
+        return True
+    except Exception as e:
+        _logger.warning("publish failed: %s", e)
+        return False
+
+
+async def subscribe(channel: str):
+    """Return a Redis pubsub object subscribed to channel, or None if
+    Redis is unavailable. Caller is responsible for reading messages."""
+    r = await get_redis()
+    if r is None:
+        return None
+    try:
+        pubsub = r.pubsub()
+        await pubsub.subscribe(channel)
+        return pubsub
+    except Exception as e:
+        _logger.warning("subscribe failed: %s", e)
+        return None
