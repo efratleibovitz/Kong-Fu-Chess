@@ -72,6 +72,16 @@ async def get_room_shard(room_id: str) -> int | None:
         return None
 
 
+async def delete_room_shard(room_id: str) -> None:
+    r = await get_redis()
+    if r is None:
+        return
+    try:
+        await r.delete(f"room:{room_id}")
+    except Exception as e:
+        _logger.warning("delete_room_shard failed: %s", e)
+
+
 # ---------------------------------------------------------------------------
 # Stage 2 — matchmaking queue
 # ---------------------------------------------------------------------------

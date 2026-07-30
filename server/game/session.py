@@ -220,6 +220,7 @@ class GameSession:
             self._apply_elo_update(winner_color=winner, loser_color=loser)
         if self.room_id:
             asyncio.create_task(_rc.delete_game_state(self.room_id))
+            asyncio.create_task(_rc.delete_room_shard(self.room_id))
 
     def _log_game_over(self, loser: str | None, reason: str) -> None:
         if loser is None or self.room_id is None:
