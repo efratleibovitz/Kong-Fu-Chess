@@ -15,10 +15,11 @@ services:
 
   redis:
     image: redis:7-alpine
-    # Not wired to any service yet - matchmaking still uses a single
-    # in-memory queue (fine for 1 replica, per Server_Design.md Sec.5/7).
-    # Included now so the Redis-backed queue (Sec.4 Q2) has somewhere to
-    # plug into without a compose change later.
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   api-gateway:
     build: .
@@ -36,11 +37,16 @@ services:
     command: python -m server.gateway.app
     environment:
       NUM_SHARDS: "2"
+      REDIS_URL: redis://redis:6379
     ports:
       - "8765:8765"
     depends_on:
-      - game-server-0
-      - game-server-1
+      redis:
+        condition: service_healthy
+      game-server-0:
+        condition: service_started
+      game-server-1:
+        condition: service_started
 
   matchmaking:
     build: .
@@ -48,10 +54,13 @@ services:
     environment:
       DATABASE_URL: postgresql://chess:chess@postgres:5432/chess
       NUM_SHARDS: "2"
+      REDIS_URL: redis://redis:6379
     ports:
       - "8766:8766"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       game-server-0:
         condition: service_started
@@ -65,8 +74,11 @@ services:
       SHARD_INDEX: "0"
       NUM_SHARDS: "2"
       DATABASE_URL: postgresql://chess:chess@postgres:5432/chess
+      REDIS_URL: redis://redis:6379
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     # No published ports - internal-only, reached by ws-gateway/matchmaking
     # over the Docker network at game-server-0:9600.
@@ -78,8 +90,11 @@ services:
       SHARD_INDEX: "1"
       NUM_SHARDS: "2"
       DATABASE_URL: postgresql://chess:chess@postgres:5432/chess
+      REDIS_URL: redis://redis:6379
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
 volumes:

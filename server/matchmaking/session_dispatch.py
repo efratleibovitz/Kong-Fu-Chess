@@ -14,7 +14,8 @@ import json
 
 import websockets
 
-from server.core.internal_protocol import NUM_SHARDS, shard_internal_url, KIND_CREATE_SESSION
+from server.core.internal_protocol import NUM_SHARDS, shard_index_for_room, shard_internal_url, KIND_CREATE_SESSION
+from server.core.redis_client import set_room_shard
 
 
 async def create_remote_session(
@@ -24,6 +25,8 @@ async def create_remote_session(
     black_user_id: int,
     black_elo: int | None,
 ) -> None:
+    shard_index = shard_index_for_room(room_id, NUM_SHARDS)
+    await set_room_shard(room_id, shard_index)
     shard_url = shard_internal_url(room_id, NUM_SHARDS)
     async with websockets.connect(shard_url) as ws:
         await ws.send(json.dumps({

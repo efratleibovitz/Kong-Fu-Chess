@@ -37,6 +37,7 @@ from server.core.internal_protocol import (
     KIND_SERVER_CLOSE,
     KIND_CREATE_SESSION,
 )
+from server.core.redis_client import set_room_shard
 from server.game.connection import handle_client
 from server.game.session import GameSession, register_session
 
@@ -127,6 +128,7 @@ async def _internal_connection_handler(internal_ws):
                     black_elo=envelope.get("black_elo"),
                 )
                 register_session(envelope["room_id"], session)
+                asyncio.create_task(set_room_shard(envelope["room_id"], SHARD_INDEX))
     finally:
         # Gateway connection dropped (crash/redeploy) - end every live
         # client's `async for` loop so GameSession.on_disconnect / the

@@ -23,6 +23,7 @@ import websockets
 from server.core.protocol import QUERY_ROOM_ID, QUERY_CREATE, FLAG_TRUE
 from server.core.internal_protocol import (
     NUM_SHARDS,
+    shard_index_for_room,
     shard_internal_url,
     KIND_CLIENT_OPEN,
     KIND_CLIENT_MESSAGE,
@@ -30,6 +31,7 @@ from server.core.internal_protocol import (
     KIND_SERVER_MESSAGE,
     KIND_SERVER_CLOSE,
 )
+from server.core.redis_client import get_room_shard
 
 HOST = "0.0.0.0"
 PUBLIC_PORT = 8765  # same port the client already dials directly today
@@ -91,6 +93,15 @@ def _resolve_path(raw_path: str) -> tuple[str, str]:
     return raw_path, room_id
 
 
+async def _resolve_shard_url(room_id: str) -> str:
+    index = await get_room_shard(room_id)
+    if index is None:
+        index = shard_index_for_room(room_id, NUM_SHARDS)
+    from server.core.internal_protocol import SHARD_HOST_PATTERN, SHARD_INTERNAL_PORT
+    host = SHARD_HOST_PATTERN.format(i=index)
+    return f"ws://{host}:{SHARD_INTERNAL_PORT}"
+
+
 async def client_handler(client_ws):
     conn_id = str(uuid.uuid4())
     path, room_id = _resolve_path(client_ws.request.path)
@@ -100,7 +111,7 @@ async def client_handler(client_ws):
         # the normal INVALID_ROOM error rather than special-casing here.
         room_id = "unrouted"
 
-    shard_url = shard_internal_url(room_id, NUM_SHARDS)
+    shard_url = await _resolve_shard_url(room_id)
     conn, lock = await _get_shard_connection(shard_url)
     _clients[conn_id] = client_ws
 

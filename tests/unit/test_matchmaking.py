@@ -39,6 +39,18 @@ def clean_queue():
 
 
 @pytest.fixture(autouse=True)
+def mock_redis_queue(monkeypatch):
+    """Stub out all Redis queue calls so tests run without a live Redis."""
+    import server.core.redis_client as rc
+    async def _noop_enqueue(user_id, elo, entered, token): return False
+    async def _noop_remove(user_id): pass
+    async def _noop_clear(): pass
+    monkeypatch.setattr(rc, "enqueue", _noop_enqueue)
+    monkeypatch.setattr(rc, "remove_from_queue", _noop_remove)
+    monkeypatch.setattr(rc, "clear_queue", _noop_clear)
+
+
+@pytest.fixture(autouse=True)
 def fast_interval(monkeypatch):
     monkeypatch.setattr(matchmaking, "CHECK_INTERVAL_SECONDS", 0.01)
 

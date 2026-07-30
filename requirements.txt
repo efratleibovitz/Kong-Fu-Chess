@@ -5,3 +5,4 @@ pytest-cov
 websockets
 aiohttp
 psycopg2-binary
+redis
