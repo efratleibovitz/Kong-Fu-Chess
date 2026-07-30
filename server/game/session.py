@@ -89,7 +89,7 @@ class GameSession:
             self._apply_player_identity(COLOR_BLACK, black_user_id)
 
         state.events.subscribe('piece_settled', self._on_state_event)
-        state.events.subscribe('selection_changed', self._on_state_event)
+        state.events.subscribe('selection_changed', self._on_selection_event)
         state.events.subscribe('game_over', self._on_game_over)
 
     def _apply_player_identity(self, color: str, user_id: int) -> None:
@@ -208,6 +208,9 @@ class GameSession:
         asyncio.create_task(self._broadcast_state())
         asyncio.create_task(self._persist())
 
+    def _on_selection_event(self, **_kwargs):
+        asyncio.create_task(self._broadcast_state())
+
     def _on_game_over(self, loser=None, reason='capture', **_kwargs):
         asyncio.create_task(self._broadcast_state())
         asyncio.create_task(self.broadcast(Message(MsgType.GAME_OVER, {"loser": loser})))
@@ -252,7 +255,7 @@ class GameSession:
             "loser": self.state.loser,
             "scores": self.state.scores,
             "captured": {
-                color: [p.to_token() for p in pieces]
+                color: [p.token for p in pieces]
                 for color, pieces in self.state.captured.items()
             },
             "cooldowns": {
@@ -317,7 +320,7 @@ class GameSession:
         }
 
         state.captured = {
-            color: [_Piece.from_token(t, _Pos(0, 0)) for t in tokens]
+            color: [Piece.from_token(t, Position(0, 0)) for t in tokens]
             for color, tokens in snapshot.get("captured", {"w": [], "b": []}).items()
         }
 

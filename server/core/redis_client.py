@@ -10,10 +10,10 @@ silently returns None/empty and callers fall back to in-memory behavior -
 no service is disrupted.
 """
 
+import asyncio
 import json
 import logging
 import os
-import time
 
 _logger = logging.getLogger(__name__)
 
@@ -25,6 +25,7 @@ ROOM_KEY_TTL_SECONDS = 3600
 MATCHMAKING_QUEUE_KEY = "matchmaking:queue"
 
 _redis = None
+_redis_lock = asyncio.Lock()
 
 
 async def get_redis():
@@ -33,13 +34,16 @@ async def get_redis():
         return _redis
     if not REDIS_URL:
         return None
-    try:
-        import redis.asyncio as aioredis
-        _redis = aioredis.from_url(REDIS_URL, decode_responses=True)
-        return _redis
-    except Exception as e:
-        _logger.warning("Redis unavailable: %s", e)
-        return None
+    async with _redis_lock:
+        if _redis is not None:  # re-check after acquiring lock
+            return _redis
+        try:
+            import redis.asyncio as aioredis
+            _redis = aioredis.from_url(REDIS_URL, decode_responses=True)
+            return _redis
+        except Exception as e:
+            _logger.warning("Redis unavailable: %s", e)
+            return None
 
 
 # ---------------------------------------------------------------------------
