@@ -94,6 +94,11 @@ class MoveSettler:
             if CaptureRules.should_promote(piece, to_pos, board):
                 promoted = CaptureRules.promote(piece)
                 board.set_piece(to_pos, promoted)
+                state.cooldowns[(to_pos.col, to_pos.row)] = arrive_time + SHORT_REST_MS
+                state.rest_type[(to_pos.col, to_pos.row)] = 'short_rest'
+            else:
+                state.cooldowns[(to_pos.col, to_pos.row)] = arrive_time + LONG_REST_MS
+                state.rest_type[(to_pos.col, to_pos.row)] = 'long_rest'
 
             is_king = CaptureRules.is_king_captured(captured) or any(CaptureRules.is_king_captured(c[0]) for c in mid_path_captures)
             is_queen = (captured is not None and captured.kind == PieceKind.QUEEN) or any(c[0].kind == PieceKind.QUEEN for c in mid_path_captures)
@@ -105,9 +110,6 @@ class MoveSettler:
                 board=board
             )
             state.move_history.append(MoveRecord(time_ms=arrive_time, notation=notation, color=color_char))
-
-            state.cooldowns[(to_pos.col, to_pos.row)] = arrive_time + LONG_REST_MS
-            state.rest_type[(to_pos.col, to_pos.row)] = 'long_rest'
             state.events.emit('piece_settled')
 
     @staticmethod

@@ -32,7 +32,7 @@ def test_promoted_queen_can_move_diagonally():
     game = _make([['.', '.', '.'], ['.', 'wP', '.'], ['.', '.', '.']])
     game.click(150, 150)
     game.click(150, 50)
-    game.wait(1000)
+    game.wait(1500)  # pawn arrives at t=500, SHORT_REST cooldown expires at t=1500
     game.click(150, 50)
     game.click(250, 150)
     game.wait(1000)
