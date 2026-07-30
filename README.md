@@ -1,9 +1,10 @@
 # Kong Fu Chess
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
-![pytest](https://img.shields.io/badge/Tests-pytest-green)
-![Coverage](https://img.shields.io/badge/Coverage-HTML%20Report-brightgreen)
+![pytest](https://img.shields.io/badge/Tests-189%20passed-green)
+![Coverage](https://img.shields.io/badge/Coverage-90%25-brightgreen)
 ![Docker](https://img.shields.io/badge/Docker-Compose-blue)
+![Redis](https://img.shields.io/badge/Redis-PubSub%20%2B%20Queue%20%2B%20Snapshots-red)
 
 Kong Fu Chess is a Python-based real-time chess-style game with animated sprites, a live HUD, and a clean modular architecture. It can be played solo on one machine, or online against another player over a real-time-matched, ELO-based server backed by a full microservices architecture running in Docker.
 
@@ -18,7 +19,9 @@ Kong Fu Chess is a Python-based real-time chess-style game with animated sprites
 - observer/event pattern — UI reacts to game events, not polling
 - **online 2-player mode**: account/ELO based matchmaking, authoritative game server shards, automatic board-perspective flip, disconnect grace window with technical loss + ELO update
 - **microservices architecture**: API Gateway, WS Gateway, Matchmaking service, and Game Server shards — all orchestrated with Docker Compose
-- unit, integration, and UI test suites
+- **Redis-backed infrastructure**: shared matchmaking queue (sorted set), room→shard registry, game-state snapshots for crash recovery, and Redis Pub/Sub decoupling Matchmaking from Game Server shards
+- **structured observability**: JSON logging and `/health` endpoints on every service
+- unit, integration, and UI test suites — 189 tests, 90% core coverage
 
 ## Project Structure
 
@@ -35,7 +38,7 @@ Kong Fu Chess is a Python-based real-time chess-style game with animated sprites
   - `server/gateway/` - WebSocket Gateway — routes clients to game shards by consistent-hashed room_id, port 8765
   - `server/matchmaking/` - ELO matchmaking service, port 8766
   - `server/game/` - Game Server shards (game-server-0, game-server-1), internal port 9600
-  - `server/core/` - shared database, protocol constants, internal protocol, game logger
+  - `server/core/` - shared database, protocol constants, internal protocol, game logger, Redis client, observability
   - `server/auth/` - authentication service (register, login, tokens, ELO updates)
 - `client/` - network transport and a thin adapter that lets the existing `Screen` drive networked play unmodified
 - `tests/` - unit, integration, and UI test suites
@@ -51,6 +54,16 @@ Kong Fu Chess is a Python-based real-time chess-style game with animated sprites
 **Microservices + Docker Compose** — the server is split into four independently deployable services: API Gateway (REST auth), WS Gateway (websocket routing), Matchmaking (ELO queue), and Game Server shards (one per shard index). All wired together with Docker Compose alongside Postgres and Redis.
 
 **Consistent hashing for shard routing** — every service that needs to reach "the shard that owns this room" computes the same deterministic `md5(room_id) % NUM_SHARDS` index. No allocator service, no lookup table.
+
+**Redis Pub/Sub for service decoupling** — when a match is found, Matchmaking publishes a `create_session` event to a per-shard Redis channel (`shard:N:events`). The target Game Server shard subscribes and pre-registers the session. Matchmaking no longer needs to know the shard's hostname or port. Falls back to a direct WebSocket call if Redis is unavailable.
+
+**Redis-backed matchmaking queue** — the ELO queue is stored as a Redis sorted set (score = ELO) so it survives a Matchmaking restart. Falls back to an in-memory list transparently when Redis is unavailable.
+
+**Game state persistence** — `GameSession` snapshots are written to Redis on every `piece_settled` event and restored on reconnect after a shard restart. Deleted from Redis when the game ends. Falls back gracefully (GRACE_SECONDS forfeit logic) if Redis is unavailable.
+
+**Room→shard registry** — Redis stores `room:{room_id} → shard_index` so the WS Gateway can route reconnecting clients to the correct shard without recomputing the hash. Deleted on game end; falls back to consistent hashing if the key is missing.
+
+**Structured observability** — every service emits JSON log lines (one object per line, ingestible by any log aggregator). Every service exposes a `/health` endpoint that probes Postgres and Redis and returns `{"status": "ok"|"degraded", ...}` — used for Docker healthchecks and ready to back Kubernetes readiness/liveness probes.
 
 **Observer pattern** — `GameState` holds an `EventBus`. `MoveSettler` and `GameEngine` fire events (`piece_settled`, `game_over`, `selection_changed`, `restarted`). `Screen` subscribes and sets `_needs_redraw` — no polling.
 
@@ -77,6 +90,7 @@ Kong Fu Chess is a Python-based real-time chess-style game with animated sprites
 - websockets
 - aiohttp
 - psycopg2-binary
+- redis
 
 ## Installation
 
@@ -146,10 +160,27 @@ pytest --cov=core --cov-report=html
 - `python verify_stage_c.py` — matchmaking: token auth, ELO window widening, timeout, concurrent matching, room_id assignment.
 - `python verify_stage_d_manual.py` — interactive: registers two throwaway accounts, matches them, and lets you type `dc a`/`dc b` (disconnect) and `rc a`/`rc b` (reconnect) to watch the grace window, resync, forfeit, and ELO update happen live.
 
+## Health Endpoints
+
+After `docker compose up --build`, every service exposes a `/health` endpoint:
+
+```bash
+curl http://localhost:8000/health   # api-gateway
+curl http://localhost:8767/health   # matchmaking
+curl http://localhost:8768/health   # ws-gateway
+curl http://localhost:9601/health   # game-server-0
+curl http://localhost:9602/health   # game-server-1
+```
+
+Each returns: `{"status": "ok", "service": "...", "checks": {"postgres": "ok", "redis": "ok"}}`
+
 ## Status
 
-- Test suite: passing
+- Test suite: 189 passed, 0 failures
 - UI tests: passing
+- Core coverage: 90% (HTML report in `htmlcov/`)
 - Online play: matchmaking, per-room sessions, disconnect/reconnect, ELO updates — implemented and verified
 - Microservices: API Gateway, WS Gateway, Matchmaking, Game Server shards — running in Docker Compose
-- Coverage report: available in `htmlcov/`
+- Redis: Pub/Sub messaging, matchmaking queue, game snapshots, room registry — all implemented with in-memory fallback
+- Observability: structured JSON logging and `/health` endpoints on all services
+- Production architecture: documented in `Server_Design.md` §8 (Kubernetes evolution path)

@@ -22,6 +22,7 @@ It runs solo (text or graphical) or online 2-player over a websocket server, all
 - Input parsing: `core/iofiles/board_parser.py`
 - View layer: `view/`
 - Server (online play): `server/` — split into `api/`, `gateway/`, `matchmaking/`, `game/`, `core/`, `auth/`
+- Redis client + observability: `server/core/redis_client.py`, `server/core/observability.py`
 - Client (online play): `client/`
 
 ## View layer
@@ -49,6 +50,37 @@ It runs solo (text or graphical) or online 2-player over a websocket server, all
 
 - `GameState.to_render_state()` is the ONLY place model data is converted to view data
 - No model imports anywhere in `view/` except `screen.py` which holds `GameState` and `GameEngine` references
+
+## Redis layer (`server/core/redis_client.py`)
+
+All Redis calls are optional — every function returns `None`/`False`/empty silently if Redis is unavailable, and callers fall back to in-memory behavior. Never crash a service because Redis is down.
+
+- `get_redis()` — singleton with `asyncio.Lock` to prevent race on first connection
+- **Stage 1 — room registry**: `set_room_shard`, `get_room_shard`, `delete_room_shard` — key `room:{room_id}`, TTL 1h, deleted on game end
+- **Stage 2 — matchmaking queue**: `enqueue`, `remove_from_queue`, `get_queue_entries`, `clear_queue` — Redis sorted set, score = ELO, key `matchmaking:queue`
+- **Stage 3 — game snapshots**: `save_game_state`, `load_game_state`, `delete_game_state` — key `game:{room_id}`, TTL 2h, deleted on game end
+- **Stage 5 — Pub/Sub**: `publish(channel, message)`, `subscribe(channel)` — channel names via `shard_channel(index)` in `internal_protocol.py`
+
+## Observability (`server/core/observability.py`)
+
+- `get_logger(service)` — returns a `LoggerAdapter` that emits one JSON line per record. Call once at module level in each service.
+- `build_health_response(service, checks)` — standard `{"status": "ok"|"degraded", "service": ..., "checks": {...}}` shape.
+- `check_postgres()` / `check_redis()` — async probes reused by all `/health` handlers.
+- Health ports: api-gateway=8000, matchmaking=8767, ws-gateway=8768, game-server-0=9601, game-server-1=9602.
+
+## Redis Pub/Sub flow (Stage 5)
+
+When a match is found, `server/matchmaking/session_dispatch.py` publishes a `create_session` envelope to `shard:N:events`. Each Game Server shard subscribes to its own channel via `_pubsub_listener()` (background task started in `shard_app.main()`). If Redis is unavailable, `session_dispatch` falls back to the original direct WebSocket call to the shard.
+
+Do not add new message kinds to the Pub/Sub channel without updating both the publisher (`session_dispatch.py`) and the subscriber (`shard_app._pubsub_listener`).
+
+## Game state snapshot rules (Stage 3)
+
+`GameSession._persist()` is called only on `piece_settled` events — not on `selection_changed`. This is intentional: selection changes on every click and must not trigger a Redis write.
+
+`GameSession.from_snapshot(snapshot)` rebuilds a session from a Redis dict. It does NOT restore `pending_moves` or `pending_jumps` — in-flight moves at crash time are lost. The GRACE_SECONDS forfeit logic is the safety net.
+
+`_to_snapshot()` uses `piece.token` (a property), not `piece.to_token()` (does not exist).
 
 ## Online play (server/client)
 
@@ -97,10 +129,12 @@ The server is layered into four packages under `server/` — `core/` (infrastruc
 ## Testing
 
 ```bash
-pytest -q                          # all tests
-pytest tests/ui_tests/ -v          # UI tests only
-pytest tests/integration/ -q       # integration tests only
-pytest --cov=core --cov-report=html  # coverage report
+pytest -q                            # all tests (189 total)
+pytest tests/ui_tests/ -v            # UI tests only
+pytest tests/integration/ -q         # integration tests only
+pytest tests/unit/ -q                # unit tests only
+pytest --cov=core --cov-report=html  # coverage report (90% core)
+start htmlcov/index.html             # open coverage report (Windows)
 ```
 
 Two standalone scripts also exercise online-play server logic end-to-end against a real running server, outside of pytest:
