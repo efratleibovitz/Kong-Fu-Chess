@@ -127,5 +127,130 @@ Not built as a separate always-on stack for the Compose MVP — kept intentional
 
 All services share one Dockerfile (single Python package, `server.*` imports) and one Docker network; only `api-gateway` and `ws-gateway` publish ports to the host.
 
+---
 
+## 8. Production Architecture — Kubernetes evolution
+
+This section documents how the Docker Compose MVP maps to a production Kubernetes deployment capable of handling the 10M concurrent / 83K matches-per-second scale described in §4. No code changes are required — the application layer is already designed for this. The changes are entirely in how containers are deployed and wired together.
+
+### 8.1 Docker Compose → Kubernetes mapping
+
+| Docker Compose | Kubernetes resource | Replicas / scaling |
+|---|---|---|
+| `api-gateway` container | `Deployment` + `ClusterIP` Service | 3–10 replicas, HPA on CPU |
+| `ws-gateway` container | `Deployment` + `LoadBalancer` Service (or Ingress) | 5–20 replicas, HPA on active connection count |
+| `matchmaking` container | `Deployment` + `ClusterIP` Service | 3–10 replicas, HPA on queue depth (custom metric) |
+| `game-server-0/1` containers | `StatefulSet` (one pod per shard index) | Fixed shard count, vertical scaling per pod |
+| `postgres` container | Managed DB (RDS / Cloud SQL) or `StatefulSet` with PVC | Primary + 1–2 read replicas |
+| `redis` container | Managed Redis (ElastiCache) or Redis Sentinel `StatefulSet` | 1 primary + 2 replicas |
+| Docker network (internal) | Kubernetes `ClusterIP` Services + DNS | All inter-service traffic stays inside the cluster |
+| `ports:` in Compose | `Ingress` controller (NGINX / Traefik) | Single external entry point, TLS termination |
+
+### 8.2 Ingress — replacing manual port exposure
+
+In Docker Compose, `api-gateway` and `ws-gateway` publish ports directly to the host. In Kubernetes, a single **Ingress controller** (NGINX or Traefik) is the only internet-facing component:
+
+```
+Internet
+    │
+    ▼
+Ingress controller  (TLS termination, rate limiting, DDoS protection)
+    ├── /api/*          ──► api-gateway ClusterIP Service
+    └── /ws  (Upgrade)  ──► ws-gateway ClusterIP Service
+```
+
+- REST traffic (`/register`, `/login`, `/rooms`) routes to `api-gateway`.
+- WebSocket upgrade requests route to `ws-gateway`. The Ingress must be configured with `nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"` (or equivalent) so long-lived WS connections are not killed by the default 60s proxy timeout.
+- Everything else (`matchmaking`, `game-server-*`, `postgres`, `redis`) has `ClusterIP` only — unreachable from outside the cluster.
+
+### 8.3 Autoscaling — the right metric per service
+
+Each service has a different bottleneck, so each needs a different HPA metric:
+
+| Service | Scale metric | Why |
+|---|---|---|
+| `api-gateway` | CPU utilisation | Short stateless requests — CPU is the right proxy for load |
+| `ws-gateway` | Active connection count (custom metric via Prometheus) | CPU stays low even under millions of idle sockets — connection count is the real resource |
+| `matchmaking` | Redis queue depth (external metric) | Queue growing means match-creation is falling behind — add replicas to drain it faster |
+| `game-server` | Active room count per pod (custom metric) | CPU per pod rises linearly with rooms; scale out when rooms-per-pod exceeds a threshold |
+
+`game-server` pods are a `StatefulSet` with a fixed shard count, not a standard HPA target — adding a new shard requires a rolling config update (new `SHARD_INDEX`, new pub/sub subscription). The consistent-hashing function (`md5(room_id) % NUM_SHARDS`) must be updated atomically across all services when `NUM_SHARDS` changes, otherwise the Gateway routes new rooms to the wrong shard. In practice: double the shard count during a maintenance window, drain old shards gracefully.
+
+**PodDisruptionBudgets** — set `minAvailable: 1` on every Deployment so a node drain never takes a service to zero replicas:
+
+```yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ws-gateway-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: ws-gateway
+```
+
+### 8.4 Redis — high availability
+
+In Docker Compose, Redis is a single container — one crash loses the matchmaking queue and all game snapshots. In production:
+
+**Redis Sentinel** (minimum viable HA):
+```
+Redis Primary  ◄──replication──  Redis Replica-1
+      │                          Redis Replica-2
+      │
+Sentinel-1  Sentinel-2  Sentinel-3   (quorum = 2)
+```
+- Sentinel monitors the primary and promotes a replica automatically on failure (typically within 10–30 seconds).
+- Application code connects to Sentinel, not directly to the primary — `redis.asyncio.from_url("redis+sentinel://...")` handles failover transparently.
+- The existing `get_redis()` in `server/core/redis_client.py` only needs its URL changed — no other code changes required.
+
+**Redis Cluster** (for true horizontal scale beyond a single primary's memory/throughput) — not needed until the sorted-set matchmaking queue or snapshot storage exceeds a single node's capacity, which at 10M concurrent is a real concern for snapshots (`game:{room_id}` keys at ~5M concurrent rooms). Cluster shards the keyspace automatically; the application code change is minimal (`redis.asyncio.RedisCluster` instead of `from_url`).
+
+### 8.5 Postgres — high availability
+
+In Docker Compose, Postgres is a single container. In production:
+
+- **Primary + streaming replication replica** — replica handles read traffic (ELO lookups, history queries); primary handles writes (register, ELO update on game-over).
+- **Managed service preferred** (AWS RDS, Google Cloud SQL, Azure Database for PostgreSQL) — automated failover, point-in-time recovery, and connection pooling (PgBouncer) are handled by the provider rather than requiring custom ops work.
+- The existing `server/core/database.py` `_connect()` function only needs `DATABASE_URL` pointed at the managed endpoint — no schema or query changes required.
+- At 100M users, the `users` table stays fast: `username` is already `UNIQUE`-indexed (existing schema), so login is always an index seek, not a scan.
+
+### 8.6 What stays exactly the same
+
+The application layer requires zero changes to run in Kubernetes:
+
+- **Consistent hashing** (`md5(room_id) % NUM_SHARDS`) — same function, same result, whether running in Compose or K8s. The Gateway, Matchmaking, and Game Server all compute it independently with no coordination.
+- **Redis Pub/Sub channels** (`shard:0:events`, `shard:1:events`) — channel names are derived from `SHARD_INDEX`, which is already an environment variable. Each pod subscribes to its own channel on startup.
+- **Health endpoints** (`/health` on every service) — already implemented (Stage 4). In K8s these back `readinessProbe` and `livenessProbe` directly:
+  ```yaml
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 15
+    periodSeconds: 30
+  ```
+- **Structured JSON logs** (Stage 4) — already stdout JSON. In K8s, a log collector (Fluentd / Fluent Bit) picks them up from pod stdout and ships to any aggregator (CloudWatch, Datadog, Loki) with no application changes.
+- **Graceful disconnect handling** (`GRACE_SECONDS = 20`) — already implemented. A pod receiving `SIGTERM` (K8s rolling update) stops accepting new connections; existing games finish within their grace window before the pod exits.
+- **Redis fallback** — every Redis call in `redis_client.py` returns `None`/`False` silently if Redis is unreachable. During a Redis failover (Sentinel promoting a replica, ~10–30s), the system degrades gracefully: matchmaking falls back to in-memory queue, Gateway falls back to hash routing, game snapshots are skipped. No crash, no data corruption.
+
+### 8.7 Migration path — Compose to Kubernetes
+
+The steps are additive, not a rewrite:
+
+1. **Containerise** — already done. One shared `Dockerfile`, all services.
+2. **Push image to a registry** (ECR / GCR / Docker Hub).
+3. **Write K8s manifests** — one `Deployment` + `Service` per service, one `StatefulSet` for game-server shards, one `Ingress`. Environment variables (`REDIS_URL`, `DATABASE_URL`, `SHARD_INDEX`, `NUM_SHARDS`) move from `docker-compose.yml` to K8s `ConfigMap` / `Secret`.
+4. **Point DNS** at the Ingress controller's external IP.
+5. **Add HPAs** once baseline metrics are collected (first week of production traffic).
+6. **Swap Redis/Postgres** to managed services — change one environment variable each, redeploy.
+
+No application code changes at any step.
 
